@@ -1,122 +1,73 @@
-from tkinter import W
-from flask import Flask, request
 import os
 import requests
-import urllib.parse
+from flask import Flask, request
 
-# ===========================
-# CẤU HÌNH
-# ===========================
-COC_API_KEY = os.getenv("COC_API_KEY")
-CLAN_TAG = os.getenv("CLAN_TAG", "#2JUVCQ9VC")
+# ==== Cấu hình từ biến môi trường ====
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # URL công khai của bạn
+CLAN_TAG = os.getenv("CLAN_TAG")
+COC_API_KEY = os.getenv("COC_API_KEY")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+PORT = int(os.getenv("PORT", 10000))
 
 app = Flask(__name__)
-BASE_TELEGRAM = f"https://api.telegram.org/bot{BOT_TOKEN}" if BOT_TOKEN else None
 
-# ===========================
-# GỬI TELEGRAM
-# ===========================
-def send_telegram(text, chat_id=CHAT_ID):
-    url = f"{BASE_TELEGRAM}/sendMessage"
-    payload = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
-    try:
-        r = requests.post(url, json=payload, timeout=10)
-        return r.status_code == 200
-    except Exception as e:
-        print("Lỗi Telegram:", e)
-        return False
-
-# ===========================
-# LẤY DỮ LIỆU CLAN
-# ===========================
-def get_clan_status():
+# ==== Hàm gọi API Clash of Clans ====
+def get_clan_info():
     headers = {"Authorization": f"Bearer {COC_API_KEY}"}
-    encoded_tag = urllib.parse.quote(CLAN_TAG)
-    url = f"https://api.clashofclans.com/v1/clans/{encoded_tag}/members"
-    try:
-        r = requests.get(url, headers=headers, timeout=10)
-        if r.status_code == 200:
-            data = r.json()
-            members = data.get("items", [])
-            total = len(members)
-            return {"total": total}, None
+    tag = CLAN_TAG.replace("#", "%23")
+    url = f"https://api.clashofclans.com/v1/clans/{tag}"
+    r = requests.get(url, headers=headers)
+    if r.status_code == 200:
+        return r.json()
+    return None
+
+# ==== Xử lý webhook Telegram ====
+@app.route("/webhook", methods=["POST"])
+def webhook():
+    update = request.get_json()
+    if not update:
+        return "No update", 200
+
+    message = update.get("message", {})
+    text = message.get("text", "").strip().lower()
+
+    if text == "/check":
+        clan_info = get_clan_info()
+        if clan_info:
+            name = clan_info.get("name", "")
+            level = clan_info.get("clanLevel", "")
+            members = clan_info.get("members", "")
+            msg = f"🏰 Clan: {name}\n⭐ Level: {level}\n👥 Thành viên: {members}"
         else:
-            return None, f"❌ Lỗi COC API: {r.status_code} - {r.text}"
-    except Exception as e:
-        return None, f"⚠️ Lỗi khi gọi COC API: {e}"
+            msg = "❌ Không thể lấy thông tin clan."
+        send_message(msg)
+    else:
+        send_message("⚙️ Gõ /check để xem thông tin clan.")
 
-# ===========================
-# WEBHOOK XỬ LÝ TIN NHẮN TELEGRAM
-# ===========================
-@app.route(f"/{BOT_TOKEN}", methods=["POST"])
-def telegram_webhook():
-    update = request.get_json(force=True)
+    return "OK", 200
 
-    if "message" in update:
-        msg = update["message"]
-        chat_id = msg["chat"]["id"]
-        text = msg.get("text", "").strip().lower()
+# ==== Hàm gửi tin nhắn ====
+def send_message(text):
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    payload = {"chat_id": CHAT_ID, "text": text}
+    try:
+        requests.post(url, json=payload, timeout=5)
+    except:
+        pass
 
-        if text.startswith("/check"):
-            status, err = get_clan_status()
-            if err:
-                send_telegram(err, chat_id)
-            else:
-                msg_text = f"⚔️ Báo cáo Clan:\n👥 Tổng thành viên: {status['total']}"
-                send_telegram(msg_text, chat_id)
-
-    return "ok"
-
-# ===========================
-# FLASK KEEP-ALIVE
-# ===========================
-@app.route("/")
-def home():
-    return "✅ Clash of Clans Bot đang chạy!"
-
-# ===========================
-# XÓA WEBHOOK CŨ
-# ===========================
+# ==== Webhook control ====
 def delete_webhook():
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/deleteWebhook"
-    try:
-        r = requests.get(url, timeout=10)
-        print("🗑️ Xóa webhook cũ:", r.text)
-    except Exception as e:
-        print("⚠️ Lỗi khi xóa webhook:", e)
+    requests.get(url, timeout=5)
 
-# ===========================
-# ĐĂNG KÝ WEBHOOK MỚI
-# ===========================
 def set_webhook():
-    webhook_url = f"{WEBHOOK_URL}/{BOT_TOKEN}"  # ⚠️ đổi domain nếu bạn deploy khác
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/setWebhook"
-    payload = {"url": webhook_url}
+    params = {"url": f"{WEBHOOK_URL}/webhook"}
+    requests.get(url, params=params, timeout=5)
 
-    try:
-        r = requests.post(url, data=payload, timeout=10)
-        if r.status_code == 200:
-            print("✅ Đã đăng ký webhook thành công!")
-        else:
-            print("❌ Lỗi khi đăng ký webhook:", r.text)
-    except Exception as e:
-        print("⚠️ Lỗi kết nối Telegram:", e)
-
-# ===========================
-# KHỞI ĐỘNG
-# ===========================
+# ==== Chạy Flask app ====
 if __name__ == "__main__":
     delete_webhook()
     set_webhook()
-
-    status, err = get_clan_status()
-    if status:
-        send_telegram(f"🚀 Bot khởi động!\n👥 Tổng thành viên: {status['total']}")
-    else:
-        send_telegram(f"⚠️ Khởi động bot lỗi: {err}")
-
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=PORT)
