@@ -41,7 +41,7 @@ def get_top_donators(limit=5):
     top = sorted(members, key=lambda m: m.get("donations", 0), reverse=True)[:limit]
     msg = "💎 <b>TOP DONATE</b>\n"
     for i, m in enumerate(top, start=1):
-        msg += f"{i}. {m['name']} — {m['donations']} 👥 donate\n"
+        msg += f"{i}. {m['name']} — {m['donations']} 👥 point\n"
     return msg
 
 
