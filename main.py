@@ -1,3 +1,4 @@
+from tkinter import W
 from flask import Flask, request
 import os
 import requests
@@ -10,6 +11,7 @@ COC_API_KEY = os.getenv("COC_API_KEY")
 CLAN_TAG = os.getenv("CLAN_TAG", "#2JUVCQ9VC")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # URL công khai của bạn
 
 app = Flask(__name__)
 BASE_TELEGRAM = f"https://api.telegram.org/bot{BOT_TOKEN}" if BOT_TOKEN else None
@@ -47,7 +49,7 @@ def get_clan_status():
         return None, f"⚠️ Lỗi khi gọi COC API: {e}"
 
 # ===========================
-# LỆNH CHỦ ĐỘNG /check
+# WEBHOOK XỬ LÝ TIN NHẮN TELEGRAM
 # ===========================
 @app.route(f"/{BOT_TOKEN}", methods=["POST"])
 def telegram_webhook():
@@ -76,9 +78,40 @@ def home():
     return "✅ Clash of Clans Bot đang chạy!"
 
 # ===========================
-# TỰ ĐỘNG GỌI 1 LẦN KHI START
+# XÓA WEBHOOK CŨ
+# ===========================
+def delete_webhook():
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/deleteWebhook"
+    try:
+        r = requests.get(url, timeout=10)
+        print("🗑️ Xóa webhook cũ:", r.text)
+    except Exception as e:
+        print("⚠️ Lỗi khi xóa webhook:", e)
+
+# ===========================
+# ĐĂNG KÝ WEBHOOK MỚI
+# ===========================
+def set_webhook():
+    webhook_url = f"{WEBHOOK_URL}/{BOT_TOKEN}"  # ⚠️ đổi domain nếu bạn deploy khác
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/setWebhook"
+    payload = {"url": webhook_url}
+
+    try:
+        r = requests.post(url, data=payload, timeout=10)
+        if r.status_code == 200:
+            print("✅ Đã đăng ký webhook thành công!")
+        else:
+            print("❌ Lỗi khi đăng ký webhook:", r.text)
+    except Exception as e:
+        print("⚠️ Lỗi kết nối Telegram:", e)
+
+# ===========================
+# KHỞI ĐỘNG
 # ===========================
 if __name__ == "__main__":
+    delete_webhook()
+    set_webhook()
+
     status, err = get_clan_status()
     if status:
         send_telegram(f"🚀 Bot khởi động!\n👥 Tổng thành viên: {status['total']}")
