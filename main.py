@@ -39,10 +39,8 @@ def get_clan_status():
         if r.status_code == 200:
             data = r.json()
             members = data.get("items", [])
-            in_war = sum(1 for m in members if m.get("inWar", False))
-            not_in_war = len(members) - in_war
             total = len(members)
-            return {"total": total, "in_war": in_war, "not_in_war": not_in_war}, None
+            return {"total": total}, None
         else:
             return None, f"❌ Lỗi COC API: {r.status_code} - {r.text}"
     except Exception as e:
@@ -65,12 +63,7 @@ def telegram_webhook():
             if err:
                 send_telegram(err, chat_id)
             else:
-                msg_text = (
-                    f"⚔️ Báo cáo Clan:\n"
-                    f"👥 Tổng thành viên: {status['total']}\n"
-                    f"✅ Đã tham gia war: {status['in_war']}\n"
-                    f"❌ Chưa tham gia war: {status['not_in_war']}"
-                )
+                msg_text = f"⚔️ Báo cáo Clan:\n👥 Tổng thành viên: {status['total']}"
                 send_telegram(msg_text, chat_id)
 
     return "ok"
@@ -88,9 +81,7 @@ def home():
 if __name__ == "__main__":
     status, err = get_clan_status()
     if status:
-        send_telegram(
-            f"🚀 Bot khởi động!\n👥 Tổng thành viên: {status['total']}\n✅ Đã tham gia war: {status['in_war']}\n❌ Chưa tham gia war: {status['not_in_war']}"
-        )
+        send_telegram(f"🚀 Bot khởi động!\n👥 Tổng thành viên: {status['total']}")
     else:
         send_telegram(f"⚠️ Khởi động bot lỗi: {err}")
 
