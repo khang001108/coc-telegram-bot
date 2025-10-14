@@ -218,10 +218,22 @@ def handle_callback(chat_id, data_callback):
     elif data_callback == "top_online":
         msg = "🕒 Dữ liệu online hiện Clash API không cung cấp trực tiếp.\n(bạn có thể thay bằng hoạt động donate/chiến gần nhất)"
         send_message(chat_id, msg)
+        
+    elif data_callback == "top_war":
+        top_players = sorted(members, key=lambda x: sum(a["stars"] for a in x.get("attacks", [])), reverse=True)
+        msg = "🏅 <b>Top 3 người đánh war tốt nhất:</b>\n"
+        for i, m in enumerate(top_players[:3], start=1):
+            stars = sum(a["stars"] for a in m.get("attacks", []))
+            msg += f"{i}. {m['name']} - ⭐ {stars}\n"
+        send_message(chat_id, msg)
 
-    elif data_callback in ["top_war", "not_attack"]:
-        send_message(chat_id, "⚙️ Chức năng này đã có trong lệnh /war.")
-
+    elif data_callback == "not_attack":
+        not_attacked = [m["name"] for m in members if "attacks" not in m or len(m["attacks"]) == 0]
+        if not not_attacked:
+            msg = "✅ Tất cả thành viên đã đánh!"
+        else:
+            msg = "⚔️ <b>Thành viên chưa đánh:</b>\n" + "\n".join(not_attacked)
+        send_message(chat_id, msg)
 # ==============================
 # 8️⃣ WEBHOOK
 # ==============================
