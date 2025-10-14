@@ -48,7 +48,7 @@ def webhook():
         text = message["text"]
         chat_id = message["chat"]["id"]
 
-        if text == "/menu":
+        if text.startswith("/menu"):
             send_message(chat_id, "📋 Menu:\n/war - Thông tin chiến tranh\n/clan - Thông tin Clan")
 
         elif text == "/clan":
