@@ -5,7 +5,6 @@ from flask import Flask, request
 import hashlib
 import threading
 import time
-import datetime
 
 
 last_clan_hash = None
@@ -82,12 +81,17 @@ def send_message(chat_id, text, reply_markup=None):
     r = requests.post(url, json=payload)
     if not r.ok:
         print("⚠️ Gửi tin nhắn lỗi:", r.text)
-
 # ==============================
 # KIỂM TRA THAY ĐỔI CLAN
 # ==============================
+last_clan_hash = None
+last_leader = None
+last_clan_type = None
+last_war = {"wins": 0, "losses": 0, "ties": 0}
+last_donate_requests = set()  # theo dõi member đang xin donate
+
 def check_clan_changes():
-    global last_clan_hash
+    global last_clan_hash, last_leader, last_clan_type, last_war, last_donate_requests
     headers = {"Authorization": f"Bearer {COC_API_KEY}"}
     clan_tag_encoded = CLAN_TAG.replace("#", "%23")
     url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}"
@@ -96,32 +100,53 @@ def check_clan_changes():
         try:
             res = requests.get(url, headers=headers, timeout=10)
             data = res.json()
-            leader = next((m["name"] for m in data.get("memberList", []) if m["role"] == "leader"), "")
-            relevant = f"{data.get('name')}-{data.get('type')}-{leader}-{data.get('warWins')}-{data.get('warLosses')}-{data.get('warTies')}"
-            hash_now = hashlib.md5(relevant.encode()).hexdigest()
+            members = data.get("memberList", [])
+            leader = next((m["name"] for m in members if m["role"] == "leader"), "")
+            clan_type = data.get("type", "open")
 
-            print("DEBUG relevant:", relevant, "hash_now:", hash_now)
-
+            # Khởi tạo lần đầu
             if last_clan_hash is None:
-                last_clan_hash = hash_now
-                print("Khởi tạo hash ban đầu")
-            elif last_clan_hash != hash_now:
-                send_message(int(CHAT_ID),
-                    f"⚠️ Clan đã thay đổi!\n"
-                    f"Tên: {data.get('name')}\n"
-                    f"Leader: {leader}\n"
-                    f"Loại: {data.get('type')}\n"
-                    f"War Wins: {data.get('warWins')}\n"
-                    f"War Losses: {data.get('warLosses')}\n"
-                    f"War Ties: {data.get('warTies')}"
-                )
-                last_clan_hash = hash_now
+                last_clan_hash = hashlib.md5(f"{leader}-{clan_type}-{data.get('warWins')}-{data.get('warLosses')}-{data.get('warTies')}".encode()).hexdigest()
+                last_leader = leader
+                last_clan_type = clan_type
+                last_war = {"wins": data.get('warWins',0), "losses": data.get('warLosses',0), "ties": data.get('warTies',0)}
+                last_donate_requests = set(m["tag"] for m in members if m.get("donationsReceived",0) > 0)
+                print("Khởi tạo hash và dữ liệu ban đầu")
+            else:
+                changes = []
+
+                # Leader thay đổi
+                if leader != last_leader:
+                    changes.append(f"👑 Leader thay đổi: {last_leader} → {leader}")
+                    last_leader = leader
+
+                # Loại clan thay đổi
+                if clan_type != last_clan_type:
+                    changes.append(f"⚙️ Loại clan thay đổi: {last_clan_type} → {clan_type}")
+                    last_clan_type = clan_type
+
+                # War thay đổi
+                if data.get('warWins') != last_war["wins"] or data.get('warLosses') != last_war["losses"] or data.get('warTies') != last_war["ties"]:
+                    changes.append(f"⚔️ War cập nhật: {last_war['wins']}-{last_war['losses']}-{last_war['ties']} → {data.get('warWins')}-{data.get('warLosses')}-{data.get('warTies')}")
+                    last_war = {"wins": data.get('warWins',0), "losses": data.get('warLosses',0), "ties": data.get('warTies',0)}
+
+                # Kiểm tra member xin donate
+                current_requests = set()
+                for m in members:
+                    if m.get("donationsReceived",0) > 0:
+                        current_requests.add(m["tag"])
+                        if m["tag"] not in last_donate_requests:
+                            changes.append(f"📝 {m['name']} đang xin lính! Hãy vào game donate nhé!")
+                last_donate_requests = current_requests
+
+                # Gửi thông báo nếu có thay đổi
+                if changes:
+                    send_message(int(CHAT_ID), "\n".join(changes))
 
         except Exception as e:
             print("⚠️ Lỗi kiểm tra clan:", e)
 
-        time.sleep(20)  # giảm để test nhanh
-
+        time.sleep(60)  # kiểm tra mỗi 60 giây
 
 # ==============================
 # 4️⃣ THÔNG TIN CLAN
