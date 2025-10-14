@@ -83,10 +83,9 @@ def set_webhook():
     print("🧹 Xóa webhook cũ:", delete_res.json())
 
     # Đăng ký webhook mới
-    set_url = f"https://api.telegram.org/bot{BOT_TOKEN}/setWebhook?url={WEBHOOK_URL}"
+    set_url = f"https://api.telegram.org/bot{BOT_TOKEN}/setWebhook?url={WEBHOOK_URL}/webhook"
     set_res = requests.get(set_url)
     print("✅ Đăng ký webhook mới:", set_res.json())
-
 
 # -------------------------------
 # 6️⃣ Chạy app
