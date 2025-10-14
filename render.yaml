@@ -86,10 +86,15 @@ def send_message(chat_id, text, reply_markup=None):
 # ==============================
 # KIỂM TRA THAY ĐỔI CLAN
 # ==============================
-last_clan_state = {}
+
+last_clan_hash = None
+last_leader = None
+last_clan_type = None
+last_war = {"wins": 0, "losses": 0, "ties": 0}
+last_member_donations = {}
 
 def check_clan_changes():
-    global last_clan_state
+    global last_clan_hash, last_leader, last_clan_type, last_war, last_member_donations
     headers = {"Authorization": f"Bearer {COC_API_KEY}"}
     clan_tag_encoded = CLAN_TAG.replace("#", "%23")
     url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}"
@@ -98,52 +103,68 @@ def check_clan_changes():
         try:
             res = requests.get(url, headers=headers, timeout=10)
             data = res.json()
+            members = data.get("memberList", [])
+            leader = next((m["name"] for m in members if m["role"] == "leader"), "")
+            clan_type = data.get("type", "open")
+            relevant = f"{data.get('name')}-{clan_type}-{leader}-{data.get('warWins')}-{data.get('warLosses')}-{data.get('warTies')}"
+            hash_now = hashlib.md5(relevant.encode()).hexdigest()
 
-            # Lấy thông tin cần theo dõi
-            leader = next((m["name"] for m in data.get("memberList", []) if m["role"] == "leader"), "")
-            clan_type = data.get("type", "")
-            warWins = data.get("warWins", 0)
-            warLosses = data.get("warLosses", 0)
-            warTies = data.get("warTies", 0)
+            if last_clan_hash is None:
+                # Khởi tạo lần đầu
+                last_clan_hash = hash_now
+                last_leader = leader
+                last_clan_type = clan_type
+                last_war = {
+                    "wins": data.get('warWins', 0),
+                    "losses": data.get('warLosses', 0),
+                    "ties": data.get('warTies', 0)
+                }
+                last_member_donations = {m["tag"]: m.get("donations",0) for m in members}
+                print("Khởi tạo dữ liệu ban đầu")
+            elif last_clan_hash != hash_now:
+                changes = []
 
-            # Giả sử bạn có danh sách xin join (nếu API cung cấp)
-            pending_members = [m["name"] for m in data.get("pendingMembers", [])] if "pendingMembers" in data else []
+                # Leader thay đổi
+                if leader != last_leader:
+                    changes.append(f"👑 Leader thay đổi: {last_leader} → {leader}")
+                    last_leader = leader
 
-            changes = []
+                # Loại clan thay đổi
+                if clan_type != last_clan_type:
+                    changes.append(f"⚙️ Loại clan thay đổi: {last_clan_type} → {clan_type}")
+                    last_clan_type = clan_type
 
-            # So sánh với trạng thái cũ
-            if last_clan_state.get("leader") and last_clan_state["leader"] != leader:
-                changes.append(f"👑 Leader thay đổi: {last_clan_state['leader']} → {leader}")
-            if last_clan_state.get("type") and last_clan_state["type"] != clan_type:
-                changes.append(f"⚙️ Loại clan thay đổi: {last_clan_state['type']} → {clan_type}")
-            if last_clan_state.get("warWins") is not None and last_clan_state["warWins"] != warWins:
-                changes.append(f"⚔️ War Wins: {last_clan_state['warWins']} → {warWins}")
-            if last_clan_state.get("warLosses") is not None and last_clan_state["warLosses"] != warLosses:
-                changes.append(f"❌ War Losses: {last_clan_state['warLosses']} → {warLosses}")
-            if last_clan_state.get("warTies") is not None and last_clan_state["warTies"] != warTies:
-                changes.append(f"🤝 War Ties: {last_clan_state['warTies']} → {warTies}")
-            if last_clan_state.get("pending_members") != pending_members and pending_members:
-                changes.append(f"📝 Thành viên xin vào: {', '.join(pending_members)}")
+                # War thay đổi
+                if (data.get('warWins') != last_war["wins"] or 
+                    data.get('warLosses') != last_war["losses"] or 
+                    data.get('warTies') != last_war["ties"]):
+                    changes.append(f"⚔️ War cập nhật: {last_war['wins']}-{last_war['losses']}-{last_war['ties']} → {data.get('warWins')}-{data.get('warLosses')}-{data.get('warTies')}")
+                    last_war = {
+                        "wins": data.get('warWins',0),
+                        "losses": data.get('warLosses',0),
+                        "ties": data.get('warTies',0)
+                    }
 
-            if changes:
-                msg = "⚠️ Clan đã thay đổi!\n" + "\n".join(changes)
-                send_message(int(CHAT_ID), msg)
+                # Donations thay đổi
+                for m in members:
+                    tag = m["tag"]
+                    current = m.get("donations", 0)
+                    last = last_member_donations.get(tag, 0)
+                    if current > last:
+                        changes.append(f"🪖 {m['name']} vừa donate {current - last} lính")
+                    last_member_donations[tag] = current
 
-            # Cập nhật trạng thái cũ
-            last_clan_state = {
-                "leader": leader,
-                "type": clan_type,
-                "warWins": warWins,
-                "warLosses": warLosses,
-                "warTies": warTies,
-                "pending_members": pending_members
-            }
+                # Thông báo nếu có thay đổi
+                if changes:
+                    msg = f"🏰 Clan <b>{data.get('name')}</b> cập nhật:\n" + "\n".join(changes)
+                    send_message(int(CHAT_ID), msg)
+
+                last_clan_hash = hash_now
 
         except Exception as e:
             print("⚠️ Lỗi kiểm tra clan:", e)
 
-        time.sleep(20)
-
+        time.sleep(20)  # có thể giảm để test nhanh
 
 # ==============================
 # 4️⃣ THÔNG TIN CLAN
