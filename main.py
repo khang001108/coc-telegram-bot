@@ -84,6 +84,41 @@ def send_message(chat_id, text, reply_markup=None):
         print("⚠️ Gửi tin nhắn lỗi:", r.text)
 
 # ==============================
+# KIỂM TRA THAY ĐỔI CLAN
+# ==============================
+def check_clan_changes():
+    global last_clan_hash
+    headers = {"Authorization": f"Bearer {COC_API_KEY}"}
+    clan_tag_encoded = CLAN_TAG.replace("#", "%23")
+    url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}"
+
+    # Lấy hash ban đầu
+    try:
+        res = requests.get(url, headers=headers, timeout=10)
+        data = res.json()
+        leader = next((m["name"] for m in data.get("memberList", []) if m["role"] == "leader"), "")
+        relevant = f"{data.get('name')}-{data.get('type')}-{leader}-{data.get('warWins')}-{data.get('warLosses')}-{data.get('warTies')}"
+        last_clan_hash = hashlib.md5(relevant.encode()).hexdigest()
+    except:
+        last_clan_hash = None
+
+    while True:
+        try:
+            res = requests.get(url, headers=headers, timeout=10)
+            data = res.json()
+            leader = next((m["name"] for m in data.get("memberList", []) if m["role"] == "leader"), "")
+            relevant = f"{data.get('name')}-{data.get('type')}-{leader}-{data.get('warWins')}-{data.get('warLosses')}-{data.get('warTies')}"
+            hash_now = hashlib.md5(relevant.encode()).hexdigest()
+            
+            if last_clan_hash != hash_now:
+                # Gửi thông báo nếu có thay đổi
+                send_message(int(CHAT_ID), f"⚠️ Clan đã thay đổi!\nTên: {data.get('name')}\nLeader: {leader}\nLoại: {data.get('type')}\nWar Wins: {data.get('warWins')}\nWar Losses: {data.get('warLosses')}\nWar Ties: {data.get('warTies')}")
+                last_clan_hash = hash_now
+        except Exception as e:
+            print("⚠️ Lỗi kiểm tra clan:", e)
+        time.sleep(300)
+
+# ==============================
 # 4️⃣ THÔNG TIN CLAN
 # ==============================
 def send_clan_info(chat_id):
@@ -133,41 +168,6 @@ def send_clan_info(chat_id):
     )
     send_message(chat_id, msg)
 
-
-# ==============================
-# KIỂM TRA THAY ĐỔI CLAN
-# ==============================
-def check_clan_changes():
-    global last_clan_hash
-    headers = {"Authorization": f"Bearer {COC_API_KEY}"}
-    clan_tag_encoded = CLAN_TAG.replace("#", "%23")
-    url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}"
-
-    # Lấy hash ban đầu
-    try:
-        res = requests.get(url, headers=headers, timeout=10)
-        data = res.json()
-        leader = next((m["name"] for m in data.get("memberList", []) if m["role"] == "leader"), "")
-        relevant = f"{data.get('name')}-{data.get('type')}-{leader}-{data.get('warWins')}-{data.get('warLosses')}-{data.get('warTies')}"
-        last_clan_hash = hashlib.md5(relevant.encode()).hexdigest()
-    except:
-        last_clan_hash = None
-
-    while True:
-        try:
-            res = requests.get(url, headers=headers, timeout=10)
-            data = res.json()
-            leader = next((m["name"] for m in data.get("memberList", []) if m["role"] == "leader"), "")
-            relevant = f"{data.get('name')}-{data.get('type')}-{leader}-{data.get('warWins')}-{data.get('warLosses')}-{data.get('warTies')}"
-            hash_now = hashlib.md5(relevant.encode()).hexdigest()
-            
-            if last_clan_hash != hash_now:
-                # Gửi thông báo nếu có thay đổi
-                send_message(int(CHAT_ID), f"⚠️ Clan đã thay đổi!\nTên: {data.get('name')}\nLeader: {leader}\nLoại: {data.get('type')}\nWar Wins: {data.get('warWins')}\nWar Losses: {data.get('warLosses')}\nWar Ties: {data.get('warTies')}")
-                last_clan_hash = hash_now
-        except Exception as e:
-            print("⚠️ Lỗi kiểm tra clan:", e)
-        time.sleep(300)
 
 
 
