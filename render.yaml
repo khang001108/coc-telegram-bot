@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: coc-telegram-bot
+    env: python
+    region: singapore
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "gunicorn main:app"
+    envVars:
+      - key: BOT_TOKEN
+        value: "8331415494:AAFPoQByn-lT5jEa1LxAYmiimxDr8gV1QT4"
+      - key: CHAT_ID
+        value: "123456789"        # 👈 Thay bằng ID nhóm hoặc cá nhân
+      - key: CLAN_TAG
+        value: "#2P8YQ8QYU"
+      - key: COC_API_KEY
+        value: "eyJ0eXAiOiJKV1QiLCJh..."
+      - key: WEBHOOK_URL
+        value: "https://gio-troi-coc.onrender.com"
+      - key: PORT
+        value: "10000"
