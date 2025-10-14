@@ -36,57 +36,37 @@ def home():
 @app.route('/webhook', methods=['POST'])
 def webhook():
     data = request.json
+    print("📩 Dữ liệu Telegram:", data)
+
     if not data:
         return "No data", 400
 
     message = data.get("message", {})
     callback = data.get("callback_query")
 
-    # ====== Nếu là callback (bấm nút inline) ======
+    # Nếu bấm nút
     if callback:
         chat_id = callback["message"]["chat"]["id"]
         data_callback = callback["data"]
         handle_callback(chat_id, data_callback)
         return "OK", 200
 
-    # ====== Nếu là tin nhắn ======
+    # Nếu là lệnh
     if "text" in message:
-        text = message["text"].strip()
+        text = message["text"]
         chat_id = message["chat"]["id"]
-        username = message["from"].get("first_name", "Người chơi")
 
-        # ==== Các lệnh có dấu "/" ====
-        if text.startswith("/"):
-            if text.startswith("/menu"):
-                send_message(
-                    chat_id,
-                    "📋 Menu lệnh:\n"
-                    "/clan - Thông tin hội\n"
-                    "/members - Danh sách thành viên\n"
-                    "/war - Chiến tranh hiện tại\n"
-                    "/say <nội dung> - Gửi tin vào Clan Chat ảo"
-                )
+        if text.startswith("/menu"):
+            send_message(chat_id, "📋 Menu:\n/clan - Thông tin hội\n/members - Danh sách thành viên\n/war - Chiến tranh hiện tại")
 
-            elif text.startswith("/clan"):
-                send_clan_info(chat_id)
+        elif text.startswith("/clan"):
+            send_clan_info(chat_id)
 
-            elif text.startswith("/war"):
-                send_war_info(chat_id)
+        elif text.startswith("/war"):
+            send_war_info(chat_id)
 
-            elif text.startswith("/members"):
-                send_members_menu(chat_id)
-
-            elif text.startswith("/say "):
-                # Người dùng gõ lệnh say: gửi tin lên “Clan Chat ảo”
-                clan_text = text[5:].strip()
-                if clan_text:
-                    send_message(CHAT_ID, f"💬 {username}: {clan_text}")
-                else:
-                    send_message(chat_id, "⚠️ Vui lòng nhập nội dung sau /say")
-
-        # ==== Nếu KHÔNG có dấu "/" → coi như tin nhắn clan ====
-        else:
-            send_message(CHAT_ID, f"💬 {username}: {text}")
+        elif text.startswith("/members"):
+            send_members_menu(chat_id)
 
     return "OK", 200
 
@@ -102,16 +82,14 @@ def send_message(chat_id, text, reply_markup=None):
     if not r.ok:
         print("⚠️ Gửi tin nhắn lỗi:", r.text)
 # ==============================
-# KIỂM TRA THAY ĐỔI CLAN
+# KIỂM TRA THAY ĐỔI CLAN (PHIÊN BẢN RÚT GỌN)
 # ==============================
-last_clan_hash = None
-last_leader = None
 last_clan_type = None
-last_war = {"wins": 0, "losses": 0, "ties": 0}
-last_donate_requests = set()  # theo dõi member đang xin donate
+last_war = {"wins": 0, "losses": 0, "ties": 0, "streak": 0}
+last_members = set()  # lưu tag của thành viên
 
 def check_clan_changes():
-    global last_clan_hash, last_leader, last_clan_type, last_war, last_donate_requests
+    global last_clan_type, last_war, last_members
     headers = {"Authorization": f"Bearer {COC_API_KEY}"}
     clan_tag_encoded = CLAN_TAG.replace("#", "%23")
     url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}"
@@ -120,53 +98,76 @@ def check_clan_changes():
         try:
             res = requests.get(url, headers=headers, timeout=10)
             data = res.json()
-            members = data.get("memberList", [])
-            leader = next((m["name"] for m in members if m["role"] == "leader"), "")
+            if "memberList" not in data:
+                print("⚠️ API trả về lỗi hoặc không có dữ liệu.")
+                time.sleep(60)
+                continue
+
+            members = data["memberList"]
+            current_members = set(m["tag"] for m in members)
             clan_type = data.get("type", "open")
 
-            # Khởi tạo lần đầu
-            if last_clan_hash is None:
-                last_clan_hash = hashlib.md5(f"{leader}-{clan_type}-{data.get('warWins')}-{data.get('warLosses')}-{data.get('warTies')}".encode()).hexdigest()
-                last_leader = leader
+            # --- Khởi tạo lần đầu ---
+            if not last_members:
+                last_members = current_members
                 last_clan_type = clan_type
-                last_war = {"wins": data.get('warWins',0), "losses": data.get('warLosses',0), "ties": data.get('warTies',0)}
-                last_donate_requests = set(m["tag"] for m in members if m.get("donationsReceived",0) > 0)
-                print("Khởi tạo hash và dữ liệu ban đầu")
-            else:
-                changes = []
+                last_war = {
+                    "wins": data.get("warWins", 0),
+                    "losses": data.get("warLosses", 0),
+                    "ties": data.get("warTies", 0),
+                    "streak": data.get("warWinStreak", 0),
+                }
+                print("✅ Khởi tạo dữ liệu ban đầu.")
+                time.sleep(60)
+                continue
 
-                # Leader thay đổi
-                if leader != last_leader:
-                    changes.append(f"👑 Leader thay đổi: {last_leader} → {leader}")
-                    last_leader = leader
+            changes = []
 
-                # Loại clan thay đổi
-                if clan_type != last_clan_type:
-                    changes.append(f"⚙️ Loại clan thay đổi: {last_clan_type} → {clan_type}")
-                    last_clan_type = clan_type
+            # --- 1️⃣ Kiểm tra thành viên vào ---
+            joined = current_members - last_members
+            if joined:
+                joined_names = [m["name"] for m in members if m["tag"] in joined]
+                changes.append("🟢 Thành viên mới vào clan:\n" + "\n".join(joined_names))
 
-                # War thay đổi
-                if data.get('warWins') != last_war["wins"] or data.get('warLosses') != last_war["losses"] or data.get('warTies') != last_war["ties"]:
-                    changes.append(f"⚔️ War cập nhật: {last_war['wins']}-{last_war['losses']}-{last_war['ties']} → {data.get('warWins')}-{data.get('warLosses')}-{data.get('warTies')}")
-                    last_war = {"wins": data.get('warWins',0), "losses": data.get('warLosses',0), "ties": data.get('warTies',0)}
+            # --- 2️⃣ Kiểm tra thành viên rời ---
+            left = last_members - current_members
+            if left:
+                changes.append("🔴 Thành viên rời clan:\n" + "\n".join(left))
 
-                # Kiểm tra member xin donate
-                current_requests = set()
-                for m in members:
-                    if m.get("donationsReceived",0) > 0:
-                        current_requests.add(m["tag"])
-                        if m["tag"] not in last_donate_requests:
-                            changes.append(f"📝 {m['name']} đang xin lính! Hãy vào game donate nhé!")
-                last_donate_requests = current_requests
+            # --- 3️⃣ Kiểm tra thay đổi loại clan ---
+            if clan_type != last_clan_type:
+                changes.append(f"⚙️ Loại clan thay đổi: {last_clan_type} → {clan_type}")
+                last_clan_type = clan_type
 
-                # Gửi thông báo nếu có thay đổi
-                if changes:
-                    send_message(int(CHAT_ID), "\n".join(changes))
+            # --- 4️⃣ Kiểm tra kết quả war hoặc chuỗi thắng ---
+            current_war = {
+                "wins": data.get("warWins", 0),
+                "losses": data.get("warLosses", 0),
+                "ties": data.get("warTies", 0),
+                "streak": data.get("warWinStreak", 0),
+            }
+
+            if (
+                current_war["wins"] != last_war["wins"]
+                or current_war["losses"] != last_war["losses"]
+                or current_war["ties"] != last_war["ties"]
+            ):
+                result = "🏆 Clan vừa thắng 1 trận war!" if current_war["wins"] > last_war["wins"] else "💀 Clan vừa thua 1 trận war!"
+                changes.append(f"{result}\n🔥 Chuỗi thắng hiện tại: {current_war['streak']}")
+                last_war = current_war
+
+            # --- 5️⃣ Cập nhật danh sách thành viên ---
+            last_members = current_members
+
+            # --- Gửi thông báo nếu có thay đổi ---
+            if changes:
+                msg = "\n\n".join(changes)
+                send_message(int(CHAT_ID), msg)
 
         except Exception as e:
             print("⚠️ Lỗi kiểm tra clan:", e)
 
-        time.sleep(30)  # kiểm tra mỗi 30 giây
+        time.sleep(60)  # kiểm tra mỗi 60 giây
 
 # ==============================
 # 4️⃣ THÔNG TIN CLAN
