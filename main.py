@@ -146,7 +146,7 @@ def check_clan_changes():
         except Exception as e:
             print("⚠️ Lỗi kiểm tra clan:", e)
 
-        time.sleep(60)  # kiểm tra mỗi 60 giây
+        time.sleep(60)  # kiểm tra mỗi 30 giây
 
 # ==============================
 # 4️⃣ THÔNG TIN CLAN
