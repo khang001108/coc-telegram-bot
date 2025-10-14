@@ -15,6 +15,7 @@ app = Flask(__name__)
 # CẤU HÌNH
 # ==============================
 BOT_TOKEN = os.getenv("BOT_TOKEN")
+CHAT_ID = os.getenv("CHAT_ID")
 CLAN_TAG = os.getenv("CLAN_TAG")
 COC_API_KEY = os.getenv("COC_API_KEY")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
@@ -128,6 +129,9 @@ def send_clan_info(chat_id):
     )
     send_message(chat_id, msg)
 
+# ==============================
+# KIỂM TRA THAY ĐỔI CLAN
+# ==============================
 def check_clan_changes():
     global last_clan_hash
     headers = {"Authorization": f"Bearer {COC_API_KEY}"}
@@ -312,6 +316,6 @@ if __name__ == '__main__':
 
     # Bắt đầu thread kiểm tra clan thay đổi
     threading.Thread(target=check_clan_changes, daemon=True).start()
-    
+
     app.run(host='0.0.0.0', port=PORT)
     
