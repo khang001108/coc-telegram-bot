@@ -2,20 +2,20 @@ services:
   - type: web
     name: coc-telegram-bot
     env: python
-    region: singapore
+    region: Oregon (US West)
     plan: free
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "gunicorn main:app"
+    startCommand: "python main.py"
     envVars:
       - key: BOT_TOKEN
         value: "8331415494:AAFPoQByn-lT5jEa1LxAYmiimxDr8gV1QT4"
       - key: CHAT_ID
-        value: "123456789"        # 👈 Thay bằng ID nhóm hoặc cá nhân
+        value: "-4831470978"        # 👈 Thay bằng ID nhóm hoặc cá nhân
       - key: CLAN_TAG
-        value: "#2P8YQ8QYU"
+        value: "#2JUVCQ9VC"
       - key: COC_API_KEY
-        value: "eyJ0eXAiOiJKV1QiLCJh..."
+        value: "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiIsImtpZCI6IjI4YTMxOGY3LTAwMDAtYTFlYi03ZmExLTJjNzQzM2M2Y2NhNSJ9.eyJpc3MiOiJzdXBlcmNlbGwiLCJhdWQiOiJzdXBlcmNlbGw6Z2FtZWFwaSIsImp0aSI6ImJmMjhmNDdjLTJhMzQtNDQwYy1hYmRlLTM0NTk3MmM5MzMyNiIsImlhdCI6MTc2MDI3NzkyNSwic3ViIjoiZGV2ZWxvcGVyL2NmYTc1YWEyLWQxY2ItMGM5My03YWY4LThkYzc5OTFiMmE3YiIsInNjb3BlcyI6WyJjbGFzaCJdLCJsaW1pdHMiOlt7InRpZXIiOiJkZXZlbG9wZXIvc2lsdmVyIiwidHlwZSI6InRocm90dGxpbmcifSx7ImNpZHJzIjpbIjM0LjIxMS4yMDAuODUiXSwidHlwZSI6ImNsaWVudCJ9XX0.zdbfBk_EjalIarqthz0V_fmoiCvbAJl_9LGAROCuL3a4_CMkp-HYdF0Cd2cPjS9mpzG0Byd1qXMBgGgmJ3Wo1Q"
       - key: WEBHOOK_URL
-        value: "https://gio-troi-coc.onrender.com"
+        value: "https://coc-telegram-bot.onrender.com"
       - key: PORT
         value: "10000"
