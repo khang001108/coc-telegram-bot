@@ -86,8 +86,10 @@ def send_message(chat_id, text, reply_markup=None):
 # ==============================
 # KIỂM TRA THAY ĐỔI CLAN
 # ==============================
+last_clan_state = {}
+
 def check_clan_changes():
-    global last_clan_hash
+    global last_clan_state
     headers = {"Authorization": f"Bearer {COC_API_KEY}"}
     clan_tag_encoded = CLAN_TAG.replace("#", "%23")
     url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}"
@@ -96,31 +98,51 @@ def check_clan_changes():
         try:
             res = requests.get(url, headers=headers, timeout=10)
             data = res.json()
+
+            # Lấy thông tin cần theo dõi
             leader = next((m["name"] for m in data.get("memberList", []) if m["role"] == "leader"), "")
-            relevant = f"{data.get('name')}-{data.get('type')}-{leader}-{data.get('warWins')}-{data.get('warLosses')}-{data.get('warTies')}"
-            hash_now = hashlib.md5(relevant.encode()).hexdigest()
+            clan_type = data.get("type", "")
+            warWins = data.get("warWins", 0)
+            warLosses = data.get("warLosses", 0)
+            warTies = data.get("warTies", 0)
 
-            print("DEBUG relevant:", relevant, "hash_now:", hash_now)
+            # Giả sử bạn có danh sách xin join (nếu API cung cấp)
+            pending_members = [m["name"] for m in data.get("pendingMembers", [])] if "pendingMembers" in data else []
 
-            if last_clan_hash is None:
-                last_clan_hash = hash_now
-                print("Khởi tạo hash ban đầu")
-            elif last_clan_hash != hash_now:
-                send_message(int(CHAT_ID),
-                    f"⚠️ Clan đã thay đổi!\n"
-                    f"Tên: {data.get('name')}\n"
-                    f"Leader: {leader}\n"
-                    f"Loại: {data.get('type')}\n"
-                    f"War Wins: {data.get('warWins')}\n"
-                    f"War Losses: {data.get('warLosses')}\n"
-                    f"War Ties: {data.get('warTies')}"
-                )
-                last_clan_hash = hash_now
+            changes = []
+
+            # So sánh với trạng thái cũ
+            if last_clan_state.get("leader") and last_clan_state["leader"] != leader:
+                changes.append(f"👑 Leader thay đổi: {last_clan_state['leader']} → {leader}")
+            if last_clan_state.get("type") and last_clan_state["type"] != clan_type:
+                changes.append(f"⚙️ Loại clan thay đổi: {last_clan_state['type']} → {clan_type}")
+            if last_clan_state.get("warWins") is not None and last_clan_state["warWins"] != warWins:
+                changes.append(f"⚔️ War Wins: {last_clan_state['warWins']} → {warWins}")
+            if last_clan_state.get("warLosses") is not None and last_clan_state["warLosses"] != warLosses:
+                changes.append(f"❌ War Losses: {last_clan_state['warLosses']} → {warLosses}")
+            if last_clan_state.get("warTies") is not None and last_clan_state["warTies"] != warTies:
+                changes.append(f"🤝 War Ties: {last_clan_state['warTies']} → {warTies}")
+            if last_clan_state.get("pending_members") != pending_members and pending_members:
+                changes.append(f"📝 Thành viên xin vào: {', '.join(pending_members)}")
+
+            if changes:
+                msg = "⚠️ Clan đã thay đổi!\n" + "\n".join(changes)
+                send_message(int(CHAT_ID), msg)
+
+            # Cập nhật trạng thái cũ
+            last_clan_state = {
+                "leader": leader,
+                "type": clan_type,
+                "warWins": warWins,
+                "warLosses": warLosses,
+                "warTies": warTies,
+                "pending_members": pending_members
+            }
 
         except Exception as e:
             print("⚠️ Lỗi kiểm tra clan:", e)
 
-        time.sleep(5)  # giảm để test nhanh
+        time.sleep(20)
 
 
 # ==============================
