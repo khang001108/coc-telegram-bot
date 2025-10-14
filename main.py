@@ -81,13 +81,13 @@ def send_message(chat_id, text, reply_markup=None):
     if not r.ok:
         print("⚠️ Gửi tin nhắn lỗi:", r.text)
 # ==============================
-# KIỂM TRA THAY ĐỔI CLAN (TỐI ƯU & AN TOÀN)
+# KIỂM TRA THAY ĐỔI CLAN (TỐI ƯU PHẢN HỒI NHANH)
 # ==============================
 import requests, time, os
 
 last_clan_type = None
 last_war = {"wins": 0, "losses": 0, "ties": 0, "streak": 0}
-last_members = {}  # lưu {tag: name}
+last_members = {}
 error_count = 0
 
 def check_clan_changes():
@@ -97,17 +97,16 @@ def check_clan_changes():
     url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}"
 
     while True:
+        start_time = time.time()  # ⏱ theo dõi vòng lặp
         try:
-            res = requests.get(url, headers=headers, timeout=10)
+            res = requests.get(url, headers=headers, timeout=8)
             if res.status_code == 429:
-                print("⚠️ Bị giới hạn API — chờ 2 phút rồi thử lại...")
-                time.sleep(120)
+                time.sleep(90)
                 continue
 
             data = res.json()
             if "memberList" not in data:
-                print("⚠️ API trả về lỗi hoặc không có dữ liệu.")
-                time.sleep(60)
+                time.sleep(30)
                 continue
 
             members = {m["tag"]: m["name"] for m in data["memberList"]}
@@ -123,18 +122,17 @@ def check_clan_changes():
                     "ties": data.get("warTies", 0),
                     "streak": data.get("warWinStreak", 0),
                 }
-                print("✅ Khởi tạo dữ liệu ban đầu.")
-                time.sleep(20)
+                time.sleep(10)
                 continue
 
             changes = []
 
-            # --- 1️⃣ Thành viên mới vào ---
+            # --- 1️⃣ Thành viên mới ---
             joined = [f"{members[tag]} ({tag})" for tag in members if tag not in last_members]
             if joined:
                 changes.append("🟢 Thành viên mới vào clan:\n" + "\n".join(joined))
 
-            # --- 2️⃣ Thành viên rời clan ---
+            # --- 2️⃣ Thành viên rời ---
             left = [f"{last_members[tag]} ({tag})" for tag in last_members if tag not in members]
             if left:
                 changes.append("🔴 Thành viên rời clan:\n" + "\n".join(left))
@@ -144,14 +142,13 @@ def check_clan_changes():
                 changes.append(f"⚙️ Loại clan thay đổi: {last_clan_type} → {clan_type}")
                 last_clan_type = clan_type
 
-            # --- 4️⃣ Kết quả war hoặc chuỗi thắng ---
+            # --- 4️⃣ Kết quả war ---
             current_war = {
                 "wins": data.get("warWins", 0),
                 "losses": data.get("warLosses", 0),
                 "ties": data.get("warTies", 0),
                 "streak": data.get("warWinStreak", 0),
             }
-
             if (
                 current_war["wins"] != last_war["wins"]
                 or current_war["losses"] != last_war["losses"]
@@ -166,26 +163,28 @@ def check_clan_changes():
                 changes.append(f"{result}\n🔥 Chuỗi thắng hiện tại: {current_war['streak']}")
                 last_war = current_war
 
-            # --- 5️⃣ Cập nhật danh sách thành viên ---
+            # --- Cập nhật danh sách ---
             last_members = members
 
-            # --- 6️⃣ Gửi thông báo nếu có thay đổi ---
+            # --- Gửi thông báo nếu có thay đổi ---
             if changes:
                 msg = "\n\n".join(changes)
                 send_message(int(CHAT_ID), msg)
+                # ⏱ nghỉ 12 giây sau khi gửi thông báo (tránh spam API)
+                time.sleep(12)
 
-            error_count = 0  # reset lỗi nếu thành công
+            error_count = 0
 
-        except Exception as e:
+        except Exception:
             error_count += 1
-            print("⚠️ Lỗi kiểm tra clan:", e)
-            # Nếu lỗi liên tiếp quá 5 lần → tạm dừng lâu hơn
             if error_count >= 5:
-                print("⚠️ Quá nhiều lỗi liên tiếp, tạm dừng 2 phút...")
-                time.sleep(120)
+                time.sleep(90)
                 error_count = 0
 
-        time.sleep(20)  # kiểm tra mỗi 20 giây
+        # --- ⏱ Điều chỉnh thời gian còn lại để giữ chu kỳ ~12 giây ---
+        elapsed = time.time() - start_time
+        delay = max(0, 12 - elapsed)
+        time.sleep(delay)
 
 # ==============================
 # 4️⃣ THÔNG TIN CLAN
