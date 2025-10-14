@@ -180,60 +180,93 @@ def send_members_menu(chat_id):
     send_message(chat_id, "📋 Chọn bảng xếp hạng thành viên:", reply_markup)
 
 # ==============================
-# 7️⃣ CALLBACK XỬ LÝ NÚT
+# 7️⃣ CALLBACK XỬ LÝ NÚT (CẬP NHẬT /currentwar)
 # ==============================
 def handle_callback(chat_id, data_callback):
     headers = {"Authorization": f"Bearer {COC_API_KEY}"}
     clan_tag_encoded = CLAN_TAG.replace("#", "%23")
-    url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}"
-    res = requests.get(url, headers=headers)
-    data = res.json()
-    members = data.get("memberList", [])
 
-    if not members:
-        send_message(chat_id, "⚠️ Không có danh sách thành viên.")
+    try:
+        # Lấy dữ liệu war hiện tại
+        war_url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}/currentwar"
+        war_res = requests.get(war_url, headers=headers, timeout=10)
+        war_res.raise_for_status()
+        war_data = war_res.json()
+
+        # Lấy dữ liệu danh sách clan để các nút /members
+        clan_url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}"
+        clan_res = requests.get(clan_url, headers=headers, timeout=10)
+        clan_res.raise_for_status()
+        clan_data = clan_res.json()
+    except Exception as e:
+        send_message(chat_id, f"⚠️ Lỗi lấy dữ liệu: {e}")
         return
 
+    # ==================== /members buttons ====================
+    members = clan_data.get("memberList", [])
     if data_callback == "top_donate":
-        top = sorted(members, key=lambda m: m["donations"], reverse=True)[:5]
+        top = sorted(members, key=lambda m: m.get("donations", 0), reverse=True)[:5]
         msg = "🪖 <b>Top 5 Donate:</b>\n"
         for i, m in enumerate(top, start=1):
-            msg += f"{i}. {m['name']} - {m['donations']} lính\n"
+            msg += f"{i}. {m['name']} - {m.get('donations', 0)} lính\n"
         send_message(chat_id, msg)
+        return
 
-    elif data_callback == "top_trophies":
-        top = sorted(members, key=lambda m: m["trophies"], reverse=True)[:5]
+    if data_callback == "top_trophies":
+        top = sorted(members, key=lambda m: m.get("trophies", 0), reverse=True)[:5]
         msg = "⚔️ <b>Top 5 Chiến tích:</b>\n"
         for i, m in enumerate(top, start=1):
-            msg += f"{i}. {m['name']} - 🏆 {m['trophies']} cúp\n"
+            msg += f"{i}. {m['name']} - 🏆 {m.get('trophies', 0)} cúp\n"
         send_message(chat_id, msg)
+        return
 
-    elif data_callback == "top_hall":
+    if data_callback == "top_hall":
         top = sorted(members, key=lambda m: m.get("townHallLevel", 0), reverse=True)[:5]
         msg = "🏰 <b>Top 5 Town Hall:</b>\n"
         for i, m in enumerate(top, start=1):
             msg += f"{i}. {m['name']} - TH {m.get('townHallLevel', '?')}\n"
         send_message(chat_id, msg)
+        return
 
-    elif data_callback == "top_online":
-        msg = "🕒 Dữ liệu online hiện Clash API không cung cấp trực tiếp.\n(bạn có thể thay bằng hoạt động donate/chiến gần nhất)"
-        send_message(chat_id, msg)
-        
-    elif data_callback == "top_war":
-        top_players = sorted(members, key=lambda x: sum(a["stars"] for a in x.get("attacks", [])), reverse=True)
+    if data_callback == "top_online":
+        send_message(chat_id,
+            "🕒 Clash API không cung cấp dữ liệu online trực tiếp.\n"
+            "👉 Có thể thay bằng thống kê donate/hoạt động gần nhất.")
+        return
+
+    # ==================== /war buttons ====================
+    if "clan" not in war_data:
+        send_message(chat_id, "⚠️ Hiện không có war đang diễn ra.")
+        return
+
+    war_members = war_data["clan"].get("members", [])
+    if data_callback == "top_war":
+        top_players = sorted(
+            war_members,
+            key=lambda m: sum(a["stars"] for a in m.get("attacks", [])),
+            reverse=True
+        )
         msg = "🏅 <b>Top 3 người đánh war tốt nhất:</b>\n"
         for i, m in enumerate(top_players[:3], start=1):
             stars = sum(a["stars"] for a in m.get("attacks", []))
             msg += f"{i}. {m['name']} - ⭐ {stars}\n"
         send_message(chat_id, msg)
+        return
 
-    elif data_callback == "not_attack":
-        not_attacked = [m["name"] for m in members if "attacks" not in m or len(m["attacks"]) == 0]
+    if data_callback == "not_attack":
+        not_attacked = [
+            m["name"] for m in war_members
+            if "attacks" not in m or len(m["attacks"]) == 0
+        ]
         if not not_attacked:
-            msg = "✅ Tất cả thành viên đã đánh!"
+            msg = "✅ Tất cả thành viên trong war đã đánh!"
         else:
             msg = "⚔️ <b>Thành viên chưa đánh:</b>\n" + "\n".join(not_attacked)
         send_message(chat_id, msg)
+        return
+
+    send_message(chat_id, "⚠️ Nút không hợp lệ hoặc chưa được hỗ trợ.")
+
 # ==============================
 # 8️⃣ WEBHOOK
 # ==============================
