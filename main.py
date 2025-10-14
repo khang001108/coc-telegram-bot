@@ -34,9 +34,10 @@ def webhook():
         text = data['message']['text']
         chat_id = data['message']['chat']['id']
 
-        if text == '/menu':
+        if text.startswith('/menu'):
             message = "📋 Menu chính:\n1️⃣ Thông tin Clan\n2️⃣ Thành viên\n3️⃣ Nhật ký chiến"
             send_message(chat_id, message)
+
 
         elif text == '/clan':
             send_coc_data_to_telegram(chat_id)
