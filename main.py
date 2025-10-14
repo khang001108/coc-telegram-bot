@@ -82,14 +82,17 @@ def send_message(chat_id, text, reply_markup=None):
     if not r.ok:
         print("⚠️ Gửi tin nhắn lỗi:", r.text)
 # ==============================
-# KIỂM TRA THAY ĐỔI CLAN (PHIÊN BẢN RÚT GỌN)
+# KIỂM TRA THAY ĐỔI CLAN (TỐI ƯU & AN TOÀN)
 # ==============================
+import requests, time, os
+
 last_clan_type = None
 last_war = {"wins": 0, "losses": 0, "ties": 0, "streak": 0}
-last_members = set()  # lưu tag của thành viên
+last_members = {}  # lưu {tag: name}
+error_count = 0
 
 def check_clan_changes():
-    global last_clan_type, last_war, last_members
+    global last_clan_type, last_war, last_members, error_count
     headers = {"Authorization": f"Bearer {COC_API_KEY}"}
     clan_tag_encoded = CLAN_TAG.replace("#", "%23")
     url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}"
@@ -97,19 +100,23 @@ def check_clan_changes():
     while True:
         try:
             res = requests.get(url, headers=headers, timeout=10)
+            if res.status_code == 429:
+                print("⚠️ Bị giới hạn API — chờ 2 phút rồi thử lại...")
+                time.sleep(120)
+                continue
+
             data = res.json()
             if "memberList" not in data:
                 print("⚠️ API trả về lỗi hoặc không có dữ liệu.")
                 time.sleep(60)
                 continue
 
-            members = data["memberList"]
-            current_members = set(m["tag"] for m in members)
+            members = {m["tag"]: m["name"] for m in data["memberList"]}
             clan_type = data.get("type", "open")
 
-            # --- Khởi tạo lần đầu ---
+            # --- Lần đầu khởi tạo ---
             if not last_members:
-                last_members = current_members
+                last_members = members
                 last_clan_type = clan_type
                 last_war = {
                     "wins": data.get("warWins", 0),
@@ -118,28 +125,27 @@ def check_clan_changes():
                     "streak": data.get("warWinStreak", 0),
                 }
                 print("✅ Khởi tạo dữ liệu ban đầu.")
-                time.sleep(60)
+                time.sleep(20)
                 continue
 
             changes = []
 
-            # --- 1️⃣ Kiểm tra thành viên vào ---
-            joined = current_members - last_members
+            # --- 1️⃣ Thành viên mới vào ---
+            joined = [f"{members[tag]} ({tag})" for tag in members if tag not in last_members]
             if joined:
-                joined_names = [m["name"] for m in members if m["tag"] in joined]
-                changes.append("🟢 Thành viên mới vào clan:\n" + "\n".join(joined_names))
+                changes.append("🟢 Thành viên mới vào clan:\n" + "\n".join(joined))
 
-            # --- 2️⃣ Kiểm tra thành viên rời ---
-            left = last_members - current_members
+            # --- 2️⃣ Thành viên rời clan ---
+            left = [f"{last_members[tag]} ({tag})" for tag in last_members if tag not in members]
             if left:
                 changes.append("🔴 Thành viên rời clan:\n" + "\n".join(left))
 
-            # --- 3️⃣ Kiểm tra thay đổi loại clan ---
+            # --- 3️⃣ Thay đổi loại clan ---
             if clan_type != last_clan_type:
                 changes.append(f"⚙️ Loại clan thay đổi: {last_clan_type} → {clan_type}")
                 last_clan_type = clan_type
 
-            # --- 4️⃣ Kiểm tra kết quả war hoặc chuỗi thắng ---
+            # --- 4️⃣ Kết quả war hoặc chuỗi thắng ---
             current_war = {
                 "wins": data.get("warWins", 0),
                 "losses": data.get("warLosses", 0),
@@ -152,22 +158,35 @@ def check_clan_changes():
                 or current_war["losses"] != last_war["losses"]
                 or current_war["ties"] != last_war["ties"]
             ):
-                result = "🏆 Clan vừa thắng 1 trận war!" if current_war["wins"] > last_war["wins"] else "💀 Clan vừa thua 1 trận war!"
+                if current_war["wins"] > last_war["wins"]:
+                    result = "🏆 Clan vừa thắng 1 trận war!"
+                elif current_war["losses"] > last_war["losses"]:
+                    result = "💀 Clan vừa thua 1 trận war!"
+                else:
+                    result = "🤝 Clan vừa hòa 1 trận war!"
                 changes.append(f"{result}\n🔥 Chuỗi thắng hiện tại: {current_war['streak']}")
                 last_war = current_war
 
             # --- 5️⃣ Cập nhật danh sách thành viên ---
-            last_members = current_members
+            last_members = members
 
-            # --- Gửi thông báo nếu có thay đổi ---
+            # --- 6️⃣ Gửi thông báo nếu có thay đổi ---
             if changes:
                 msg = "\n\n".join(changes)
                 send_message(int(CHAT_ID), msg)
 
-        except Exception as e:
-            print("⚠️ Lỗi kiểm tra clan:", e)
+            error_count = 0  # reset lỗi nếu thành công
 
-        time.sleep(60)  # kiểm tra mỗi 60 giây
+        except Exception as e:
+            error_count += 1
+            print("⚠️ Lỗi kiểm tra clan:", e)
+            # Nếu lỗi liên tiếp quá 5 lần → tạm dừng lâu hơn
+            if error_count >= 5:
+                print("⚠️ Quá nhiều lỗi liên tiếp, tạm dừng 2 phút...")
+                time.sleep(120)
+                error_count = 0
+
+        time.sleep(20)  # kiểm tra mỗi 20 giây
 
 # ==============================
 # 4️⃣ THÔNG TIN CLAN
