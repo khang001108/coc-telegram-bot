@@ -23,6 +23,9 @@ WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 PORT = int(os.getenv("PORT", 10000))
 BASE_TELEGRAM = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
+headers = {"Authorization": f"Bearer {COC_API_KEY}"}
+clan_tag_encoded = CLAN_TAG.replace("#", "%23")
+
 # ==============================
 # 1️⃣ TRANG CHỦ
 # ==============================
@@ -84,68 +87,96 @@ def send_message(chat_id, text, reply_markup=None):
 # ==============================
 # KIỂM TRA THAY ĐỔI CLAN
 # ==============================
-
 last_leader = None
 last_clan_type = None
-last_war = {"wins": 0, "losses": 0, "ties": 0}
+last_war = None
 last_donate_requests = set()  # theo dõi member đang xin donate
 
-# global last_clan_hash, last_leader, last_clan_type, last_war, last_donate_requests
-headers = {"Authorization": f"Bearer {COC_API_KEY}"}
-clan_tag_encoded = CLAN_TAG.replace("#", "%23")
-url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}"
 
-def get_clan_data():
+# def send_message(chat_id, text):
+#     try:
+#         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+#         requests.post(url, json={"chat_id": chat_id, "text": text})
+#     except Exception as e:
+#         print("⚠️ Gửi tin nhắn lỗi:", e)
+
+def get_clan_info():
+    """Lấy thông tin chung của clan (leader, type, war info)"""
+    url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}"
     res = requests.get(url, headers=headers, timeout=10)
-    res.raise_for_status()
     return res.json()
 
-def check_leader():
-    global last_leader
+def get_members():
+    """Lấy danh sách member"""
+    url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}/members"
+    res = requests.get(url, headers=headers, timeout=10)
+    return res.json().get("items", [])
+
+
+def get_warlog():
+    """Lấy thông tin war gần nhất"""
+    url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}/warlog?limit=1"
+    res = requests.get(url, headers=headers, timeout=10)
+    data = res.json()
+    if "items" in data and data["items"]:
+        return data["items"][0]
+    return None
+
+def check_clan_changes():
+    global last_leader, last_clan_type, last_war, last_donate_requests
+
     while True:
         try:
-            data = get_clan_data()
-            leader = next((m["name"] for m in data.get("memberList", []) if m["role"] == "leader"), "")
-            if last_leader and leader != last_leader:
-                send_message(int(CHAT_ID), f"👑 Leader thay đổi: {last_leader} → {leader}")
-            last_leader = leader
+            changes = []
+            data = get_clan_info()
+            members = get_members()
+            leader = next((m["name"] for m in members if m["role"] == "leader"), "")
+            clan_type = data.get("type", "open")
+
+            # Khởi tạo lần đầu
+            if last_leader is None:
+
+                last_leader = leader
+                last_clan_type = clan_type
+                last_war = get_warlog()
+                last_donate_requests = set(m["tag"] for m in members if m.get("donationsReceived",0) > 0)
+                print("Khởi tạo hash và dữ liệu ban đầu")
+            else:
+
+                # Leader thay đổi
+                if leader != last_leader:
+                    changes.append(f"👑 Leader thay đổi: {last_leader} → {leader}")
+                    last_leader = leader
+
+                # Loại clan thay đổi
+                if clan_type != last_clan_type:
+                    changes.append(f"⚙️ Loại clan thay đổi: {last_clan_type} → {clan_type}")
+                    last_clan_type = clan_type
+
+                # War thay đổi
+                current_war = get_warlog()
+                if current_war and last_war:
+                    if current_war["result"] != last_war["result"] or current_war["endTime"] != last_war["endTime"]:
+                        changes.append(f"⚔️ War mới: {current_war['teamSize']}v{current_war['teamSize']} - Kết quả: {current_war['result']}")
+                        last_war = current_war
+                    
+                # Kiểm tra member xin donate
+                current_requests = set()
+                for m in members:
+                    if m.get("donationsReceived",0) > 0:
+                        current_requests.add(m["tag"])
+                        if m["tag"] not in last_donate_requests:
+                            changes.append(f"📝 {m['name']} đang xin lính! Hãy vào game donate nhé!")
+                last_donate_requests = current_requests
+
+                # Gửi thông báo nếu có thay đổi
+                if changes:
+                    send_message(int(CHAT_ID), "\n".join(changes))
+
         except Exception as e:
-            print("⚠️ Lỗi kiểm tra leader:", e)
-        time.sleep(60)  # 1 phút kiểm tra leader 1 lần
+            print("⚠️ Lỗi kiểm tra clan:", e)
 
-def check_war():
-    global last_war
-    while True:
-        try:
-            data = get_clan_data()
-            wins, losses, ties = data.get("warWins"), data.get("warLosses"), data.get("warTies")
-            if (wins, losses, ties) != (last_war["wins"], last_war["losses"], last_war["ties"]):
-                send_message(int(CHAT_ID), f"⚔️ War thay đổi: {last_war['wins']}-{last_war['losses']}-{last_war['ties']} → {wins}-{losses}-{ties}")
-                last_war = {"wins": wins, "losses": losses, "ties": ties}
-        except Exception as e:
-            print("⚠️ Lỗi kiểm tra war:", e)
-        time.sleep(120)  # 2 phút kiểm tra war 1 lần
-
-def check_donate():
-    global last_donate_requests
-    while True:
-        try:
-            data = get_clan_data()
-            members = data.get("memberList", [])
-            current = set(m["tag"] for m in members if m.get("donationsReceived", 0) > 0)
-            new_requests = [m["name"] for m in members if m["tag"] in current - last_donate_requests]
-            for name in new_requests:
-                send_message(int(CHAT_ID), f"📝 {name} đang xin lính!")
-            last_donate_requests = current
-        except Exception as e:
-            print("⚠️ Lỗi kiểm tra donate:", e)
-        time.sleep(30)  # 30 giây kiểm tra donate
-
-def start_clan_watchers():
-    threading.Thread(target=check_leader, daemon=True).start()
-    threading.Thread(target=check_war, daemon=True).start()
-    threading.Thread(target=check_donate, daemon=True).start()
-
+        time.sleep(30)  # kiểm tra mỗi 30 giây
 
 # ==============================
 # 4️⃣ THÔNG TIN CLAN
@@ -361,7 +392,7 @@ if __name__ == '__main__':
     set_webhook()
 
     # Bắt đầu thread kiểm tra clan thay đổi
-    start_clan_watchers()
+    threading.Thread(target=check_clan_changes, daemon=True).start()
 
     app.run(host='0.0.0.0', port=PORT)
     
