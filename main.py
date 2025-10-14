@@ -51,10 +51,10 @@ def webhook():
         if text.startswith("/menu"):
             send_message(chat_id, "📋 Menu:\n/war - Thông tin chiến tranh\n/clan - Thông tin Clan")
 
-        elif text == "/clan":
+        elif text.startswith("/clan"):
             send_coc_data_to_telegram(chat_id)
 
-        elif text == "/war":
+        elif text.startswith("/war"):
             send_war_info(chat_id)
 
     return "OK", 200
