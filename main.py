@@ -5,6 +5,8 @@ from flask import Flask, request
 import hashlib
 import threading
 import time
+import datetime
+
 
 last_clan_hash = None
 
@@ -108,11 +110,13 @@ def send_clan_info(chat_id):
     type_clan = data.get("type", "open")
     required_trophies = data.get("requiredTrophies", 0)
 
-    # Tính ngày thành lập (giả sử dùng createdDate nếu API có)
-    created = data.get("createdDate", None)
+    # Lấy ngày tạo clan
+    created = data.get("createdDate")
     if created:
         created_date = datetime.datetime.strptime(created, "%Y%m%dT%H%M%S.%fZ")
-        days_alive = (datetime.datetime.utcnow() - created_date).days
+        created_date = created_date.replace(tzinfo=datetime.timezone.utc)  # gán timezone UTC
+        now_utc = datetime.datetime.now(datetime.timezone.utc)
+        days_alive = (now_utc - created_date).days
     else:
         days_alive = "?"
 
@@ -128,6 +132,7 @@ def send_clan_info(chat_id):
         f"📅 Ngày hoạt động: {days_alive} ngày"
     )
     send_message(chat_id, msg)
+
 
 # ==============================
 # KIỂM TRA THAY ĐỔI CLAN
