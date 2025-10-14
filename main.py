@@ -3,9 +3,8 @@ import requests
 import datetime
 from flask import Flask, request
 import hashlib
-import threading
 import time
-
+from threading import Thread
 
 last_clan_hash = None
 
@@ -398,11 +397,19 @@ def set_webhook():
 # 9️⃣ KHỞI ĐỘNG
 # ==============================
 if __name__ == '__main__':
-    print("🚀 Khởi động bot Telegram Clash of Clans...")
-    set_webhook()
+    import threading
 
-    # Bắt đầu thread kiểm tra clan thay đổi
-    threading.Thread(target=check_clan_changes, daemon=True).start()
+    # Thiết lập webhook Telegram
+    try:
+        set_webhook()
+    except Exception:
+        pass
 
-    app.run(host='0.0.0.0', port=PORT)
-    
+    # Chạy luồng kiểm tra thay đổi clan ở nền
+    try:
+        threading.Thread(target=check_clan_changes, daemon=True).start()
+    except Exception:
+        pass
+
+    # Khởi chạy Flask server
+    app.run(host='0.0.0.0', port=PORT, debug=False, use_reloader=False)
