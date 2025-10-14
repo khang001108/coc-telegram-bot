@@ -92,16 +92,6 @@ def check_clan_changes():
     clan_tag_encoded = CLAN_TAG.replace("#", "%23")
     url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}"
 
-    # Lấy hash ban đầu
-    try:
-        res = requests.get(url, headers=headers, timeout=10)
-        data = res.json()
-        leader = next((m["name"] for m in data.get("memberList", []) if m["role"] == "leader"), "")
-        relevant = f"{data.get('name')}-{data.get('type')}-{leader}-{data.get('warWins')}-{data.get('warLosses')}-{data.get('warTies')}"
-        last_clan_hash = hashlib.md5(relevant.encode()).hexdigest()
-    except:
-        last_clan_hash = None
-
     while True:
         try:
             res = requests.get(url, headers=headers, timeout=10)
@@ -109,14 +99,29 @@ def check_clan_changes():
             leader = next((m["name"] for m in data.get("memberList", []) if m["role"] == "leader"), "")
             relevant = f"{data.get('name')}-{data.get('type')}-{leader}-{data.get('warWins')}-{data.get('warLosses')}-{data.get('warTies')}"
             hash_now = hashlib.md5(relevant.encode()).hexdigest()
-            
-            if last_clan_hash != hash_now:
-                # Gửi thông báo nếu có thay đổi
-                send_message(int(CHAT_ID), f"⚠️ Clan đã thay đổi!\nTên: {data.get('name')}\nLeader: {leader}\nLoại: {data.get('type')}\nWar Wins: {data.get('warWins')}\nWar Losses: {data.get('warLosses')}\nWar Ties: {data.get('warTies')}")
+
+            print("DEBUG relevant:", relevant, "hash_now:", hash_now)
+
+            if last_clan_hash is None:
                 last_clan_hash = hash_now
+                print("Khởi tạo hash ban đầu")
+            elif last_clan_hash != hash_now:
+                send_message(int(CHAT_ID),
+                    f"⚠️ Clan đã thay đổi!\n"
+                    f"Tên: {data.get('name')}\n"
+                    f"Leader: {leader}\n"
+                    f"Loại: {data.get('type')}\n"
+                    f"War Wins: {data.get('warWins')}\n"
+                    f"War Losses: {data.get('warLosses')}\n"
+                    f"War Ties: {data.get('warTies')}"
+                )
+                last_clan_hash = hash_now
+
         except Exception as e:
             print("⚠️ Lỗi kiểm tra clan:", e)
-        time.sleep(300)
+
+        time.sleep(20)  # giảm để test nhanh
+
 
 # ==============================
 # 4️⃣ THÔNG TIN CLAN
