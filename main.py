@@ -23,9 +23,6 @@ WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 PORT = int(os.getenv("PORT", 10000))
 BASE_TELEGRAM = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
-headers = {"Authorization": f"Bearer {COC_API_KEY}"}
-clan_tag_encoded = CLAN_TAG.replace("#", "%23")
-
 # ==============================
 # 1️⃣ TRANG CHỦ
 # ==============================
@@ -39,37 +36,57 @@ def home():
 @app.route('/webhook', methods=['POST'])
 def webhook():
     data = request.json
-    print("📩 Dữ liệu Telegram:", data)
-
     if not data:
         return "No data", 400
 
     message = data.get("message", {})
     callback = data.get("callback_query")
 
-    # Nếu bấm nút
+    # ====== Nếu là callback (bấm nút inline) ======
     if callback:
         chat_id = callback["message"]["chat"]["id"]
         data_callback = callback["data"]
         handle_callback(chat_id, data_callback)
         return "OK", 200
 
-    # Nếu là lệnh
+    # ====== Nếu là tin nhắn ======
     if "text" in message:
-        text = message["text"]
+        text = message["text"].strip()
         chat_id = message["chat"]["id"]
+        username = message["from"].get("first_name", "Người chơi")
 
-        if text.startswith("/menu"):
-            send_message(chat_id, "📋 Menu:\n/clan - Thông tin hội\n/members - Danh sách thành viên\n/war - Chiến tranh hiện tại")
+        # ==== Các lệnh có dấu "/" ====
+        if text.startswith("/"):
+            if text.startswith("/menu"):
+                send_message(
+                    chat_id,
+                    "📋 Menu lệnh:\n"
+                    "/clan - Thông tin hội\n"
+                    "/members - Danh sách thành viên\n"
+                    "/war - Chiến tranh hiện tại\n"
+                    "/say <nội dung> - Gửi tin vào Clan Chat ảo"
+                )
 
-        elif text.startswith("/clan"):
-            send_clan_info(chat_id)
+            elif text.startswith("/clan"):
+                send_clan_info(chat_id)
 
-        elif text.startswith("/war"):
-            send_war_info(chat_id)
+            elif text.startswith("/war"):
+                send_war_info(chat_id)
 
-        elif text.startswith("/members"):
-            send_members_menu(chat_id)
+            elif text.startswith("/members"):
+                send_members_menu(chat_id)
+
+            elif text.startswith("/say "):
+                # Người dùng gõ lệnh say: gửi tin lên “Clan Chat ảo”
+                clan_text = text[5:].strip()
+                if clan_text:
+                    send_message(CHAT_ID, f"💬 {username}: {clan_text}")
+                else:
+                    send_message(chat_id, "⚠️ Vui lòng nhập nội dung sau /say")
+
+        # ==== Nếu KHÔNG có dấu "/" → coi như tin nhắn clan ====
+        else:
+            send_message(CHAT_ID, f"💬 {username}: {text}")
 
     return "OK", 200
 
@@ -87,61 +104,36 @@ def send_message(chat_id, text, reply_markup=None):
 # ==============================
 # KIỂM TRA THAY ĐỔI CLAN
 # ==============================
+last_clan_hash = None
 last_leader = None
 last_clan_type = None
-last_war = None
+last_war = {"wins": 0, "losses": 0, "ties": 0}
 last_donate_requests = set()  # theo dõi member đang xin donate
 
-
-# def send_message(chat_id, text):
-#     try:
-#         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-#         requests.post(url, json={"chat_id": chat_id, "text": text})
-#     except Exception as e:
-#         print("⚠️ Gửi tin nhắn lỗi:", e)
-
-def get_clan_info():
-    """Lấy thông tin chung của clan (leader, type, war info)"""
-    url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}"
-    res = requests.get(url, headers=headers, timeout=10)
-    return res.json()
-
-def get_members():
-    """Lấy danh sách member"""
-    url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}/members"
-    res = requests.get(url, headers=headers, timeout=10)
-    return res.json().get("items", [])
-
-
-def get_warlog():
-    """Lấy thông tin war gần nhất"""
-    url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}/warlog?limit=1"
-    res = requests.get(url, headers=headers, timeout=10)
-    data = res.json()
-    if "items" in data and data["items"]:
-        return data["items"][0]
-    return None
-
 def check_clan_changes():
-    global last_leader, last_clan_type, last_war, last_donate_requests
+    global last_clan_hash, last_leader, last_clan_type, last_war, last_donate_requests
+    headers = {"Authorization": f"Bearer {COC_API_KEY}"}
+    clan_tag_encoded = CLAN_TAG.replace("#", "%23")
+    url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}"
 
     while True:
         try:
-            changes = []
-            data = get_clan_info()
-            members = get_members()
+            res = requests.get(url, headers=headers, timeout=10)
+            data = res.json()
+            members = data.get("memberList", [])
             leader = next((m["name"] for m in members if m["role"] == "leader"), "")
             clan_type = data.get("type", "open")
 
             # Khởi tạo lần đầu
-            if last_leader is None:
-
+            if last_clan_hash is None:
+                last_clan_hash = hashlib.md5(f"{leader}-{clan_type}-{data.get('warWins')}-{data.get('warLosses')}-{data.get('warTies')}".encode()).hexdigest()
                 last_leader = leader
                 last_clan_type = clan_type
-                last_war = get_warlog()
+                last_war = {"wins": data.get('warWins',0), "losses": data.get('warLosses',0), "ties": data.get('warTies',0)}
                 last_donate_requests = set(m["tag"] for m in members if m.get("donationsReceived",0) > 0)
                 print("Khởi tạo hash và dữ liệu ban đầu")
             else:
+                changes = []
 
                 # Leader thay đổi
                 if leader != last_leader:
@@ -154,12 +146,10 @@ def check_clan_changes():
                     last_clan_type = clan_type
 
                 # War thay đổi
-                current_war = get_warlog()
-                if current_war and last_war:
-                    if current_war["result"] != last_war["result"] or current_war["endTime"] != last_war["endTime"]:
-                        changes.append(f"⚔️ War mới: {current_war['teamSize']}v{current_war['teamSize']} - Kết quả: {current_war['result']}")
-                        last_war = current_war
-                    
+                if data.get('warWins') != last_war["wins"] or data.get('warLosses') != last_war["losses"] or data.get('warTies') != last_war["ties"]:
+                    changes.append(f"⚔️ War cập nhật: {last_war['wins']}-{last_war['losses']}-{last_war['ties']} → {data.get('warWins')}-{data.get('warLosses')}-{data.get('warTies')}")
+                    last_war = {"wins": data.get('warWins',0), "losses": data.get('warLosses',0), "ties": data.get('warTies',0)}
+
                 # Kiểm tra member xin donate
                 current_requests = set()
                 for m in members:
