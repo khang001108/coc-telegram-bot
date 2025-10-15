@@ -5,21 +5,6 @@ import hashlib
 from threading import Thread
 import schedule
 
-def run_scheduler():
-    while True:
-        schedule.run_pending()
-        time.sleep(1)
-
-# Check mỗi 5 phút (bạn có thể đổi)
-schedule.every(5).minutes.do(check_clan_changes)
-
-# Chạy scheduler song song Flask
-threading.Thread(target=run_scheduler, daemon=True).start()
-
-
-last_clan_hash = None
-
-
 app = Flask(__name__)
 
 # ==============================
