@@ -1,9 +1,7 @@
-import os
-import requests
+import requests, time, os
 import datetime
 from flask import Flask, request
 import hashlib
-import time
 from threading import Thread
 import schedule
 
@@ -110,15 +108,26 @@ def send_message(chat_id, text, reply_markup=None):
 # ==============================
 # KIỂM TRA THAY ĐỔI CLAN (TỐI ƯU PHẢN HỒI NHANH)
 # ==============================
+# ==============================
+# KIỂM TRA THAY ĐỔI CLAN (TỐI ƯU PHẢN HỒI NHANH)
+# ==============================
 import requests, time, os
 
 last_clan_type = None
 last_war = {"wins": 0, "losses": 0, "ties": 0, "streak": 0}
 last_members = {}
 error_count = 0
+is_checking = False  # 🔒 chống trùng khi schedule và /check cùng gọi
 
 def check_clan_changes():
-    global last_clan_type, last_war, last_members, error_count
+    global last_clan_type, last_war, last_members, error_count, is_checking
+
+    # 🔒 Ngăn chặn trùng lặp (vd: schedule & /check gọi cùng lúc)
+    if is_checking:
+        print("⚙️ Đang check, bỏ qua lần này.")
+        return
+    is_checking = True
+
     headers = {"Authorization": f"Bearer {COC_API_KEY}"}
     clan_tag_encoded = CLAN_TAG.replace("#", "%23")
     url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}"
@@ -126,9 +135,13 @@ def check_clan_changes():
     try:
         res = requests.get(url, headers=headers, timeout=8)
         if res.status_code == 429:
-            return  # giới hạn rate
+            print("⏳ Bị giới hạn rate, tạm nghỉ 1 lượt check.")
+            is_checking = False
+            return
+
         data = res.json()
         if "memberList" not in data:
+            is_checking = False
             return
 
         members = {m["tag"]: m["name"] for m in data["memberList"]}
@@ -136,14 +149,16 @@ def check_clan_changes():
 
         # --- Lần đầu ---
         if not last_members:
-            last_members = members
+            last_members.update(members)
             last_clan_type = clan_type
-            last_war = {
+            last_war.update({
                 "wins": data.get("warWins", 0),
                 "losses": data.get("warLosses", 0),
                 "ties": data.get("warTies", 0),
                 "streak": data.get("warWinStreak", 0),
-            }
+            })
+            print("✅ Khởi tạo dữ liệu clan lần đầu.")
+            is_checking = False
             return
 
         changes = []
@@ -187,12 +202,17 @@ def check_clan_changes():
         # Cập nhật danh sách
         last_members = members
 
+        # Gửi thông báo nếu có thay đổi
         if changes:
             msg = "\n\n".join(changes)
+            print("📢 Gửi thông báo:\n", msg)
             send_message(int(CHAT_ID), msg)
 
     except Exception as e:
         print("⚠️ Lỗi khi check clan:", e)
+
+    finally:
+        is_checking = False
 
 # ==============================
 # 4️⃣ THÔNG TIN CLAN
