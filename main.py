@@ -91,23 +91,17 @@ def send_message(chat_id, text, reply_markup=None):
     if not r.ok:
         print("⚠️ Gửi tin nhắn lỗi:", r.text)
 # ==============================
-# KIỂM TRA THAY ĐỔI CLAN (TỐI ƯU PHẢN HỒI NHANH)
+# KIỂM TRA THAY ĐỔI CLAN + XIN LÍNH
 # ==============================
-# ==============================
-# KIỂM TRA THAY ĐỔI CLAN (TỐI ƯU PHẢN HỒI NHANH)
-# ==============================
-import requests, time, os
-
 last_clan_type = None
 last_war = {"wins": 0, "losses": 0, "ties": 0, "streak": 0}
 last_members = {}
-error_count = 0
-is_checking = False  # 🔒 chống trùng khi schedule và /check cùng gọi
+last_donations_requested = {}  # 🔹 Lưu số lính xin lần trước
+is_checking = False
 
 def check_clan_changes():
-    global last_clan_type, last_war, last_members, error_count, is_checking
+    global last_clan_type, last_war, last_members, last_donations_requested, is_checking
 
-    # 🔒 Ngăn chặn trùng lặp (vd: schedule & /check gọi cùng lúc)
     if is_checking:
         print("⚙️ Đang check, bỏ qua lần này.")
         return
@@ -130,9 +124,10 @@ def check_clan_changes():
             return
 
         members = {m["tag"]: m["name"] for m in data["memberList"]}
+        donations_requested = {m["tag"]: m.get("donationsRequested", 0) for m in data["memberList"]}
         clan_type = data.get("type", "open")
 
-        # --- Lần đầu ---
+        # --- Lần đầu khởi tạo ---
         if not last_members:
             last_members.update(members)
             last_clan_type = clan_type
@@ -142,6 +137,7 @@ def check_clan_changes():
                 "ties": data.get("warTies", 0),
                 "streak": data.get("warWinStreak", 0),
             })
+            last_donations_requested.update(donations_requested)
             print("✅ Khởi tạo dữ liệu clan lần đầu.")
             is_checking = False
             return
@@ -184,8 +180,18 @@ def check_clan_changes():
             changes.append(f"{result}\n🔥 Chuỗi thắng hiện tại: {current_war['streak']}")
             last_war = current_war
 
-        # Cập nhật danh sách
+        # --- Thành viên vừa xin donate ---
+        just_requested = []
+        for tag, requested in donations_requested.items():
+            prev = last_donations_requested.get(tag, 0)
+            if requested > prev:
+                just_requested.append(f"{members[tag]} ({tag}) - xin {requested} lính")
+        if just_requested:
+            changes.append("📢 Vừa xin donate:\n" + "\n".join(just_requested))
+
+        # Cập nhật dữ liệu lần cuối
         last_members = members
+        last_donations_requested.update(donations_requested)
 
         # Gửi thông báo nếu có thay đổi
         if changes:
