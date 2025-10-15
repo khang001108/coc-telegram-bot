@@ -496,7 +496,10 @@ if __name__ == '__main__':
             time.sleep(1)
 
     # Check mỗi 1 phút (bạn có thể đổi)
-    schedule.every(1).minutes.do(check_clan_changes)
+    # schedule.every(1).minutes.do(check_clan_changes)
+    # Thay vì 1 phút
+    schedule.every(10).seconds.do(check_clan_changes)
+
 
     # Chạy scheduler song song Flask
     threading.Thread(target=run_scheduler, daemon=True).start()
