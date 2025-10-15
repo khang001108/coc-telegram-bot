@@ -423,8 +423,8 @@ if __name__ == '__main__':
             schedule.run_pending()
             time.sleep(1)
 
-    # Check mỗi 5 phút (bạn có thể đổi)
-    schedule.every(5).minutes.do(check_clan_changes)
+    # Check mỗi 1 phút (bạn có thể đổi)
+    schedule.every(1).minutes.do(check_clan_changes)
 
     # Chạy scheduler song song Flask
     threading.Thread(target=run_scheduler, daemon=True).start()
