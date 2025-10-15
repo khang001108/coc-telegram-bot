@@ -69,7 +69,13 @@ def webhook():
         chat_id = message["chat"]["id"]
 
         if text.startswith("/menu"):
-            send_message(chat_id, "📋 Menu:\n/clan - Thông tin hội\n/members - Danh sách thành viên\n/war - Chiến tranh hiện tại")
+            send_message(chat_id,
+                "📋 Menu:\n"
+                "/clan - Thông tin hội\n"
+                "/members - Danh sách thành viên\n"
+                "/war - Chiến tranh hiện tại\n"
+                "/check - Kiểm tra clan thủ công"
+            )
 
         elif text.startswith("/clan"):
             send_clan_info(chat_id)
@@ -79,6 +85,14 @@ def webhook():
 
         elif text.startswith("/members"):
             send_members_menu(chat_id)
+
+        elif text.startswith("/check"):
+            send_message(chat_id, "🔍 Đang kiểm tra clan...")
+            try:
+                check_clan_changes()
+                send_message(chat_id, "✅ Đã kiểm tra xong!", reply_markup=None)
+            except Exception as e:
+                send_message(chat_id, f"⚠️ Lỗi khi kiểm tra: {e}")
 
     return "OK", 200
 
@@ -398,20 +412,18 @@ if __name__ == '__main__':
     except Exception:
         pass
 
-    # Chạy luồng kiểm tra thay đổi clan ở nền
-    try:
-        def run_scheduler():
-            while True:
-                schedule.run_pending()
-                time.sleep(1)
+    # --- Thêm schedule ở đây ---
+    def run_scheduler():
+        while True:
+            schedule.run_pending()
+            time.sleep(1)
 
-        # Check mỗi 5 phút (bạn có thể đổi)
-        schedule.every(5).minutes.do(check_clan_changes)
+    # Check mỗi 5 phút (bạn có thể đổi)
+    schedule.every(5).minutes.do(check_clan_changes)
 
-        # Chạy scheduler song song Flask
-        threading.Thread(target=run_scheduler, daemon=True).start()
-    except Exception:
-        pass
+    # Chạy scheduler song song Flask
+    threading.Thread(target=run_scheduler, daemon=True).start()
+    # ----------------------------
 
-    # Khởi chạy Flask server
+    # Chạy Flask server
     app.run(host='0.0.0.0', port=PORT, debug=False, use_reloader=False)
