@@ -5,6 +5,19 @@ from flask import Flask, request
 import hashlib
 import time
 from threading import Thread
+import schedule
+
+def run_scheduler():
+    while True:
+        schedule.run_pending()
+        time.sleep(1)
+
+# Check mỗi 5 phút (bạn có thể đổi)
+schedule.every(5).minutes.do(check_clan_changes)
+
+# Chạy scheduler song song Flask
+threading.Thread(target=run_scheduler, daemon=True).start()
+
 
 last_clan_hash = None
 
@@ -96,95 +109,76 @@ def check_clan_changes():
     clan_tag_encoded = CLAN_TAG.replace("#", "%23")
     url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}"
 
-    while True:
-        start_time = time.time()  # ⏱ theo dõi vòng lặp
-        try:
-            res = requests.get(url, headers=headers, timeout=8)
-            if res.status_code == 429:
-                time.sleep(90)
-                continue
+    try:
+        res = requests.get(url, headers=headers, timeout=8)
+        if res.status_code == 429:
+            return  # giới hạn rate
+        data = res.json()
+        if "memberList" not in data:
+            return
 
-            data = res.json()
-            if "memberList" not in data:
-                time.sleep(30)
-                continue
+        members = {m["tag"]: m["name"] for m in data["memberList"]}
+        clan_type = data.get("type", "open")
 
-            members = {m["tag"]: m["name"] for m in data["memberList"]}
-            clan_type = data.get("type", "open")
-
-            # --- Lần đầu khởi tạo ---
-            if not last_members:
-                last_members = members
-                last_clan_type = clan_type
-                last_war = {
-                    "wins": data.get("warWins", 0),
-                    "losses": data.get("warLosses", 0),
-                    "ties": data.get("warTies", 0),
-                    "streak": data.get("warWinStreak", 0),
-                }
-                time.sleep(10)
-                continue
-
-            changes = []
-
-            # --- 1️⃣ Thành viên mới ---
-            joined = [f"{members[tag]} ({tag})" for tag in members if tag not in last_members]
-            if joined:
-                changes.append("🟢 Thành viên mới vào clan:\n" + "\n".join(joined))
-
-            # --- 2️⃣ Thành viên rời ---
-            left = [f"{last_members[tag]} ({tag})" for tag in last_members if tag not in members]
-            if left:
-                changes.append("🔴 Thành viên rời clan:\n" + "\n".join(left))
-
-            # --- 3️⃣ Thay đổi loại clan ---
-            if clan_type != last_clan_type:
-                changes.append(f"⚙️ Loại clan thay đổi: {last_clan_type} → {clan_type}")
-                last_clan_type = clan_type
-
-            # --- 4️⃣ Kết quả war ---
-            current_war = {
+        # --- Lần đầu ---
+        if not last_members:
+            last_members = members
+            last_clan_type = clan_type
+            last_war = {
                 "wins": data.get("warWins", 0),
                 "losses": data.get("warLosses", 0),
                 "ties": data.get("warTies", 0),
                 "streak": data.get("warWinStreak", 0),
             }
-            if (
-                current_war["wins"] != last_war["wins"]
-                or current_war["losses"] != last_war["losses"]
-                or current_war["ties"] != last_war["ties"]
-            ):
-                if current_war["wins"] > last_war["wins"]:
-                    result = "🏆 Clan vừa thắng 1 trận war!"
-                elif current_war["losses"] > last_war["losses"]:
-                    result = "💀 Clan vừa thua 1 trận war!"
-                else:
-                    result = "🤝 Clan vừa hòa 1 trận war!"
-                changes.append(f"{result}\n🔥 Chuỗi thắng hiện tại: {current_war['streak']}")
-                last_war = current_war
+            return
 
-            # --- Cập nhật danh sách ---
-            last_members = members
+        changes = []
 
-            # --- Gửi thông báo nếu có thay đổi ---
-            if changes:
-                msg = "\n\n".join(changes)
-                send_message(int(CHAT_ID), msg)
-                # ⏱ nghỉ 12 giây sau khi gửi thông báo (tránh spam API)
-                time.sleep(12)
+        # Thành viên mới
+        joined = [f"{members[tag]} ({tag})" for tag in members if tag not in last_members]
+        if joined:
+            changes.append("🟢 Thành viên mới:\n" + "\n".join(joined))
 
-            error_count = 0
+        # Thành viên rời
+        left = [f"{last_members[tag]} ({tag})" for tag in last_members if tag not in members]
+        if left:
+            changes.append("🔴 Thành viên rời:\n" + "\n".join(left))
 
-        except Exception:
-            error_count += 1
-            if error_count >= 5:
-                time.sleep(90)
-                error_count = 0
+        # Loại clan thay đổi
+        if clan_type != last_clan_type:
+            changes.append(f"⚙️ Loại clan thay đổi: {last_clan_type} → {clan_type}")
+            last_clan_type = clan_type
 
-        # --- ⏱ Điều chỉnh thời gian còn lại để giữ chu kỳ ~12 giây ---
-        elapsed = time.time() - start_time
-        delay = max(0, 12 - elapsed)
-        time.sleep(delay)
+        # Kết quả war
+        current_war = {
+            "wins": data.get("warWins", 0),
+            "losses": data.get("warLosses", 0),
+            "ties": data.get("warTies", 0),
+            "streak": data.get("warWinStreak", 0),
+        }
+        if (
+            current_war["wins"] != last_war["wins"]
+            or current_war["losses"] != last_war["losses"]
+            or current_war["ties"] != last_war["ties"]
+        ):
+            if current_war["wins"] > last_war["wins"]:
+                result = "🏆 Clan vừa thắng 1 trận war!"
+            elif current_war["losses"] > last_war["losses"]:
+                result = "💀 Clan vừa thua 1 trận war!"
+            else:
+                result = "🤝 Clan vừa hòa 1 trận war!"
+            changes.append(f"{result}\n🔥 Chuỗi thắng hiện tại: {current_war['streak']}")
+            last_war = current_war
+
+        # Cập nhật danh sách
+        last_members = members
+
+        if changes:
+            msg = "\n\n".join(changes)
+            send_message(int(CHAT_ID), msg)
+
+    except Exception as e:
+        print("⚠️ Lỗi khi check clan:", e)
 
 # ==============================
 # 4️⃣ THÔNG TIN CLAN
@@ -406,7 +400,16 @@ if __name__ == '__main__':
 
     # Chạy luồng kiểm tra thay đổi clan ở nền
     try:
-        threading.Thread(target=check_clan_changes, daemon=True).start()
+        def run_scheduler():
+            while True:
+                schedule.run_pending()
+                time.sleep(1)
+
+        # Check mỗi 5 phút (bạn có thể đổi)
+        schedule.every(5).minutes.do(check_clan_changes)
+
+        # Chạy scheduler song song Flask
+        threading.Thread(target=run_scheduler, daemon=True).start()
     except Exception:
         pass
 
