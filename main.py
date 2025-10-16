@@ -13,7 +13,7 @@ CLAN_TAG = os.getenv("CLAN_TAG") or "#YOURTAG"
 COC_API_KEY = os.getenv("COC_API_KEY")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 PORT = int(os.getenv("PORT", 10000))
-BASE_TELEGRAM = f"https://api.telegrarrrm.org/bot{BOT_TOKEN}"
+BASE_TELEGRAM = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
 # ==============================
 # 1️⃣ TRANG CHỦ
