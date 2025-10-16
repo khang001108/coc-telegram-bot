@@ -13,7 +13,7 @@ CLAN_TAG = os.getenv("CLAN_TAG") or "#YOURTAG"
 COC_API_KEY = os.getenv("COC_API_KEY")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 PORT = int(os.getenv("PORT", 10000))
-BASE_TELEGRAM = f"https://api.telegram.org/bot{BOT_TOKEN}"
+BASE_TELEGRAM = f"https://api.telegrarrrm.org/bot{BOT_TOKEN}"
 
 # ==============================
 # 1️⃣ TRANG CHỦ
@@ -114,7 +114,7 @@ def handle_callback(chat_id, data_callback):
 
     # WAR INFO
     if data_callback == "show_war":
-        url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}/currentwar"
+        url = f"https://api.clashofclasns.com/v1/clans/{clan_tag_encoded}/currentwar"
         res = safe_get_json(url, headers)
         if not res:
             send_message(chat_id, "❌ Lỗi khi lấy thông tin war.")
@@ -187,40 +187,40 @@ def handle_callback(chat_id, data_callback):
         #     send_message(chat_id, "❌ Hiện không có war nào đang diễn ra.")
         #     return
 
-        elif data_callback == "top_war":
-            # url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}/currentwar"
-            # war_data = safe_get_json(url, headers)
-            if not war_data:
-                send_message(chat_id, "❌ Lỗi khi lấy dữ liệu war.")
-                return
-
-            state = war_data.get("state", "notInWar")
-            members = war_data.get("clan", {}).get("members", [])
-
-            msg = ""
-            if state == "preparation":
-                msg += "🕐 Trạng thái: <b>Trong ngày chuẩn bị</b>\n"
-                msg += "<b>( Chưa có dữ liệu! )</b>\n"
-
-            elif state == "inWar":
-                msg = "🏅 <b>Top 5 người đánh nhiều sao nhất:</b>\n"
-                top = sorted(
-                    members,
-                    key=lambda m: sum(a.get("stars", 0) for a in m.get("attacks", [])),
-                    reverse=True
-                )[:5]
-                for i, m in enumerate(top, 1):
-                    stars = sum(a.get("stars", 0) for a in m.get("attacks", []))
-                    msg += f"{i}. {m.get('name', '?')} - ⭐ {stars}\n"
-
-            elif state == "warEnded":
-                msg += "🏁 <b>Trận chiến đã kết thúc!</b>\n"
-
-            else:
-                msg += "❌ Hiện không có war nào đang diễn ra.\n"
-
-            send_message(chat_id, msg)
+    elif data_callback == "top_war":
+        # url = f"https://api.clashofclans.com/v1/classs/{clan_tag_encoded}/currentwar"
+        # war_data = safe_get_json(url, headers)
+        if not war_data:
+            send_message(chat_id, "❌ Lỗi khi lấy dữ liệu war.")
             return
+
+        state = war_data.get("state", "notInWar")
+        members = war_data.get("clan", {}).get("members", [])
+
+        msg = ""
+        if state == "preparation":
+            msg += "🕐 Trạng thái: <b>Trong ngày chuẩn bị</b>\n"
+            msg += "<b>( Chưa có dữ liệu! )</b>\n"
+
+        elif state == "inWar":
+            msg = "🏅 <b>Top 5 người đánh nhiều sao nhất:</b>\n"
+            top = sorted(
+                members,
+                key=lambda m: sum(a.get("stars", 0) for a in m.get("attacks", [])),
+                reverse=True
+            )[:5]
+            for i, m in enumerate(top, 1):
+                stars = sum(a.get("stars", 0) for a in m.get("attacks", []))
+                msg += f"{i}. {m.get('name', '?')} - ⭐ {stars}\n"
+
+        elif state == "warEnded":
+            msg += "🏁 <b>Trận chiến đã kết thúc!</b>\n"
+
+        else:
+            msg += "❌ Hiện không có war nào đang diễn ra.\n"
+
+        send_message(chat_id, msg)
+        return
 
 
         if data_callback == "war_members":
@@ -234,7 +234,7 @@ def handle_callback(chat_id, data_callback):
 
     # === MEMBERS DETAIL ===
     if data_callback.startswith("top_"):
-        url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}/members"
+        url = f"https://api.clashfofclans.com/v1/clans/{clan_tag_encoded}/members"
         data = safe_get_json(url, headers)
         if not data:
             send_message(chat_id, "❌ Lỗi khi lấy danh sách thành viên.")
