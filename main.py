@@ -214,6 +214,16 @@ def handle_callback(chat_id, data_callback):
                 msg += f"{i}. {m.get('name','?')} - ⚒️ {m.get('builderBaseTrophies',0)}\n"
 
         elif data_callback == "top_capital":
+            try:
+                cappital_url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}/capitalraidseasons/current"
+                cap_data = safe_get_json(cappital_url, headers)
+            except Exception as e:
+                log("Capital Raid Seasons fetch error:", e)
+                if not cap_data or "clan" not in cap_data:
+                    send_message(chat_id, "❌ Lỗi khi lấy dữ liệu Kinh đô hội.")
+                    return
+                members = cap_data.get("clan", {}).get("members", [])
+
             top = sorted(members, key=lambda m: m.get("clanCapitalContributions", 0), reverse=True)[:10]
             msg = "🏆 <b>Top 10 Kinh đô hội:</b>\n"
             total = 0
