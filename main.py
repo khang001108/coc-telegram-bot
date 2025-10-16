@@ -15,10 +15,6 @@ WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 PORT = int(os.getenv("PORT", 10000))
 BASE_TELEGRAM = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
-# tiện logging console
-def log(*args):
-    print("[LOG]", *args)
-
 # ==============================
 # 1️⃣ TRANG CHỦ
 # ==============================
@@ -54,13 +50,15 @@ def webhook():
                     [{"text": "🏰 Clan", "callback_data": "show_clan"}],
                     [{"text": "⚔️ War", "callback_data": "show_war"}],
                     [{"text": "👥 Members", "callback_data": "show_members"}]
+                    [{"text": "🔍 Check", "callback_data": "show_check"}]
+
                 ]
             }
             send_message(chat_id, "📋 Chọn chức năng:", reply_markup)
 
-        elif text.startswith("/check"):
-            send_message(chat_id, "🔍 Đang kiểm tra clan...")
-            send_message(chat_id, "✅ Đã kiểm tra xong!")
+        # elif text.startswith("/check"):
+        #     send_message(chat_id, "🔍 Đang kiểm tra clan...")
+        #     send_message(chat_id, "✅ Đã kiểm tra xong!")
 
     return "OK", 200
 
@@ -82,7 +80,7 @@ def send_message(chat_id, text, reply_markup=None):
         log("send_message exception:", e)
 
 # ==============================
-# 4️⃣ XỬ LÝ CALLBACK BUTTON
+# 4️⃣ GIAO DIỆN BUTTON
 # ==============================
 def handle_callback(chat_id, data_callback):
     if not COC_API_KEY:
@@ -109,7 +107,10 @@ def handle_callback(chat_id, data_callback):
         msg = (
             f"🏰 <b>{res.get('name', '?')}</b> (Cấp {res.get('clanLevel', 0)})\n"
             f"👑 Thủ lĩnh: {leader}\n"
+            f"🏷️ Tag: {res.get('tag', '?')}\n"
+            f"📜 Mô tả: {desc}\n\n"
             f"👥 Thành viên: {res.get('members', 0)}\n"
+            f"⚙️ Quyền: {type_clan}\n"
             f"🔥 Chuỗi thắng: {res.get('warWinStreak', 0)}\n"
             f"⚔️ War: {res.get('warWins', 0)} thắng / {res.get('warLosses', 0)} thua / {res.get('warTies', 0)} hòa"
         )
@@ -124,39 +125,67 @@ def handle_callback(chat_id, data_callback):
             send_message(chat_id, "❌ Lỗi khi lấy thông tin war.")
             return
 
-        if res.get("state") == "notInWar":
-            send_message(chat_id, "❌ Không có war đang diễn ra.")
+        state = data.get("state", "notInWar")
+        if state == "notInWar":
+            send_message(chat_id, "❌ Hiện không có war nào đang diễn ra.")
             return
 
         clan = res.get("clan", {})
         opponent = res.get("opponent", {})
         team_size = res.get("teamSize", 0)
+
         msg = (
             f"⚔️ <b>{clan.get('name', '?')}</b> 🆚 <b>{opponent.get('name', '?')}</b>\n"
             f"⭐ {clan.get('stars', 0)} - {opponent.get('stars', 0)}\n"
             f"🎯 Lượt đánh: {clan.get('attacks', 0)}/{team_size*2} - Địch: {opponent.get('attacks', 0)}/{team_size*2}\n"
         )
+
+        if state == "preparation":
+            msg += "🕐 Trạng thái: <b>Trong ngày chuẩn bị</b>\n"
+        elif state == "inWar":
+            msg += "🔥 Trạng thái: <b>Trong ngày chiến đấu</b>\n"
+        elif state == "warEnded":
+            msg += "🏁 Trận chiến đã kết thúc!\n"
+
+        msg += f"👥 Thành viên war: {team_size}"
+
         reply_markup = {
             "inline_keyboard": [
-                [{"text": "🏅 Top War", "callback_data": "top_war"}],
+                [{"text": "⚔️ Top War", "callback_data": "top_war"}],
                 [{"text": "👥 Thành viên tham gia", "callback_data": "war_members"}]
             ]
         }
         send_message(chat_id, msg, reply_markup)
         return
 
-    # MEMBERS MENU
+    if handle_callback == "show_check":
+        send_message(chat_id, "🔍 Đang kiểm tra clan...")
+        time.sleep(2)   
+
+
+
+
+
+
+
+
+
+
+    # MEMBERS INFO
     if data_callback == "show_members":
         reply_markup = {
             "inline_keyboard": [
-                [{"text": "🎓 Kinh nghiệm cao nhất", "callback_data": "top_exp"}],
-                [{"text": "🏰 Làng chính", "callback_data": "top_main"}],
-                [{"text": "⚒️ Căn cứ thợ xây", "callback_data": "top_builder"}],
-            ]
+            [{"text": "🤝 Top Donate", "callback_data": "top_donate"},
+             {"text": "⚔️ Top Chiến tích", "callback_data": "top_trophies"}],
+            [{"text": "🎓 Kinh nghiệm cao nhất", "callback_data": "top_exp"},
+             {"text": "🏰 Top Hall", "callback_data": "top_hall"}]
+        ]
         }
-        send_message(chat_id, "📊 Chọn bảng xếp hạng:", reply_markup)
-        return
+        send_message(chat_id, "👥 Chọn thống kê thành viên:", reply_markup)        
 
+# ==============================
+# 5️⃣ CALLBACK XỬ LÝ NÚT (CẬP NHẬT /currentwar)
+# ==============================
     # === WAR DETAIL ===
     if data_callback in ["top_war", "war_members"]:
         url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}/currentwar"
@@ -167,12 +196,18 @@ def handle_callback(chat_id, data_callback):
         members = war_data.get("clan", {}).get("members", [])
 
         if data_callback == "top_war":
-            top = sorted(members, key=lambda m: sum(a.get("stars",0) for a in m.get("attacks", [])), reverse=True)[:5]
-            msg = "🏅 <b>Top 5 người đánh nhiều sao nhất:</b>\n"
-            for i, m in enumerate(top, 1):
-                stars = sum(a.get("stars",0) for a in m.get("attacks", []))
-                msg += f"{i}. {m.get('name','?')} - ⭐ {stars}\n"
-            send_message(chat_id, msg)
+            if state == "preparation":
+                msg += "🕐 Trạng thái: <b>Trong ngày chuẩn bị</b>\n"
+                msg += "<b>( Chưa có dữ liệu! )</b>\n"
+            elif state == "inWar":
+                # msg += "🔥 Trạng thái: <b>Trong ngày chiến đấu</b>\n"
+                top = sorted(members, key=lambda m: sum(a.get("stars",0) for a in m.get("attacks", [])), reverse=True)[:5]
+                msg = "🏅 <b>Top 5 người đánh nhiều sao nhất:</b>\n"
+                for i, m in enumerate(top, 1):
+                    stars = sum(a.get("stars",0) for a in m.get("attacks", []))
+                    msg += f"{i}. {m.get('name','?')} - ⭐ {stars}\n"
+                send_message(chat_id, msg)
+                return
             return
 
         if data_callback == "war_members":
@@ -186,7 +221,6 @@ def handle_callback(chat_id, data_callback):
 
     # === MEMBERS DETAIL ===
     if data_callback.startswith("top_"):
-        # ⚠️ Dùng endpoint /members để lấy clanCapitalContributions
         url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}/members"
         data = safe_get_json(url, headers)
         if not data:
@@ -194,23 +228,45 @@ def handle_callback(chat_id, data_callback):
             return
         members = data.get("items", [])  # endpoint này dùng "items" thay vì "memberList"
 
-        if data_callback == "top_exp":
+        if data_callback == "top_donate":
+            top = sorted(members, key=lambda m: m.get("donations", 0), reverse=True)[:10]
+            msg = "🤝 <b>Top 10 donate nhiều nhất:</b>\n"
+            for i, m in enumerate(top, 1):
+                msg += f"{i}. {m.get('name','?')} - {m.get('donations',0)}\n"
+
+        elif data_callback == "top_trophies":
+            reply_markup = {
+                "inline_keyboard": [
+                    [{"text": "🏰 Làng chính", "callback_data": "top_main"}],
+                    [{"text": "⚒️ Căn cứ thợ xây", "callback_data": "top_builder"}],
+                ]
+            }
+            if data_callback == "top_main":
+                top = sorted(members, key=lambda m: m.get("trophies", 0), reverse=True)[:10]
+                msg = "🏰 <b>Top 10 làng chính:</b>\n"
+                for i, m in enumerate(top, 1):
+                    msg += f"{i}. {m.get('name','?')} - 🏆 {m.get('trophies',0)}\n"
+
+            elif data_callback == "top_builder":
+                top = sorted(members, key=lambda m: m.get("builderBaseTrophies", 0), reverse=True)[:10]
+                msg = "⚒️ <b>Top 10 căn cứ thợ xây:</b>\n"
+                for i, m in enumerate(top, 1):
+                    msg += f"{i}. {m.get('name','?')} - ⚒️ {m.get('builderBaseTrophies',0)}\n"
+            send_message(chat_id, msg, reply_markup)
+            return
+        elif data_callback == "top_exp":
             top = sorted(members, key=lambda m: m.get("expLevel", 0), reverse=True)[:10]
             msg = "🎓 <b>Top 10 kinh nghiệm cao nhất:</b>\n"
             for i, m in enumerate(top, 1):
                 msg += f"{i}. {m.get('name','?')} - LV {m.get('expLevel',0)}\n"
 
-        elif data_callback == "top_main":
-            top = sorted(members, key=lambda m: m.get("trophies", 0), reverse=True)[:10]
-            msg = "🏰 <b>Top 10 làng chính:</b>\n"
+        elif data_callback == "top_hall":
+            top = sorted(members, key=lambda m: m.get("townHallLevel", 0), reverse=True)[:10]
+            msg = "🏰 <b>Top 10 Hall cao nhất:</b>\n"
             for i, m in enumerate(top, 1):
-                msg += f"{i}. {m.get('name','?')} - 🏆 {m.get('trophies',0)}\n"
+                msg += f"{i}. {m.get('name','?')} - Hall {m.get('townHallLevel',0)}\n"
+                
 
-        elif data_callback == "top_builder":
-            top = sorted(members, key=lambda m: m.get("builderBaseTrophies", 0), reverse=True)[:10]
-            msg = "⚒️ <b>Top 10 căn cứ thợ xây:</b>\n"
-            for i, m in enumerate(top, 1):
-                msg += f"{i}. {m.get('name','?')} - ⚒️ {m.get('builderBaseTrophies',0)}\n"
 
         send_message(chat_id, msg)
         return
