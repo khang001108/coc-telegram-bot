@@ -75,10 +75,31 @@ def send_message(chat_id, text, reply_markup=None):
         log("send_message exception:", e)
 
 # ==============================
+# 4️⃣ MENU CHÍNH
+# ==============================
+def main_menu_markup():
+    return {
+        "inline_keyboard": [
+            [
+                {"text": "🏰 Clan", "callback_data": "show_clan"},
+                {"text": "⚔️ War", "callback_data": "show_war"}
+            ],
+            [
+                {"text": "👥 Members", "callback_data": "show_members"},
+                {"text": "🔍 Check", "callback_data": "show_check"}
+            ]
+        ]
+    }
+
+# ==============================
 # 4️⃣ GIAO DIỆN BUTTON
 # ==============================
 def handle_callback(chat_id, data_callback):
     msg = None
+    if data_callback == "back_menu":
+        send_message(chat_id, "📋 Chọn chức năng:", main_menu_markup())
+        return
+
     if not COC_API_KEY:
         send_message(chat_id, "❌ COC_API_KEY chưa được cấu hình trên biến môi trường.")
         return
@@ -110,7 +131,9 @@ def handle_callback(chat_id, data_callback):
             f"🔥 Chuỗi thắng: {res.get('warWinStreak', 0)}\n"
             f"⚔️ War: {res.get('warWins', 0)} thắng / {res.get('warLosses', 0)} thua / {res.get('warTies', 0)} hòa"
         )
-        send_message(chat_id, msg)
+        send_message(chat_id, msg, {
+            "inline_keyboard": [[{"text": "🔙 Trở về", "callback_data": "back_menu"}]]
+        })
         return
 
     # WAR INFO
@@ -151,8 +174,10 @@ def handle_callback(chat_id, data_callback):
                 {"text": "👥 Thành viên tham gia", "callback_data": "war_members"}]
             ]
         }
+        reply_markup["inline_keyboard"].append([{"text": "🔙 Trở về", "callback_data": "back_menu"}])
         send_message(chat_id, msg, reply_markup)
         return
+
 
     if data_callback == "show_check":
 
@@ -169,7 +194,11 @@ def handle_callback(chat_id, data_callback):
              {"text": "🏰 Top Hall", "callback_data": "top_hall"}]
         ]
         }
-        send_message(chat_id, "👥 Chọn thống kê thành viên:", reply_markup)        
+        reply_markup["inline_keyboard"].append([{"text": "🔙 Trở về", "callback_data": "back_menu"}])
+        send_message(chat_id, "👥 Chọn thống kê thành viên:", reply_markup)
+        return
+
+        # send_message(chat_id, "👥 Chọn thống kê thành viên:", reply_markup)        
 
 # ==============================
 # 5️⃣ CALLBACK XỬ LÝ NÚT (CẬP NHẬT /currentwar)
@@ -206,6 +235,7 @@ def handle_callback(chat_id, data_callback):
         else:
             msg += "❌ Hiện không có war nào đang diễn ra.\n"
 
+        msg += "\n\n🔙 /menu để quay lại hoặc chọn nút bên dưới."
         send_message(chat_id, msg)
         return
 
@@ -222,7 +252,9 @@ def handle_callback(chat_id, data_callback):
             attacks = len(m.get("attacks", []))
             stars = sum(a.get("stars",0) for a in m.get("attacks", []))
             msg += f"{m.get('name','?')} - {attacks}/2 - {stars}⭐\n"
-        send_message(chat_id, msg)
+        
+        msg += "\n\n🔙 /menu để quay lại hoặc chọn nút bên dưới."
+        send_message(chat_id, msg, {"inline_keyboard": [[{"text": "🔙 Trở về", "callback_data": "show_members"}]]})
         return
 
     # === MEMBERS DETAIL ===
@@ -239,6 +271,10 @@ def handle_callback(chat_id, data_callback):
             msg = "🤝 <b>Top 10 donate nhiều nhất:</b>\n"
             for i, m in enumerate(top, 1):
                 msg += f"{i}. {m.get('name','?')} - {m.get('donations',0)}\n"
+                msg += "\n\n🔙 /menu để quay lại hoặc chọn nút bên dưới."
+                send_message(chat_id, msg, {"inline_keyboard": [[{"text": "🔙 Trở về", "callback_data": "show_members"}]]})
+                return
+
 
         elif data_callback == "top_trophies":
             reply_markup = {
@@ -247,6 +283,7 @@ def handle_callback(chat_id, data_callback):
                     [{"text": "⚒️ Căn cứ thợ xây", "callback_data": "top_builder"}],
                 ]
             }
+            reply_markup["inline_keyboard"].append([{"text": "🔙 Trở về", "callback_data": "show_members"}])
             send_message(chat_id, "🏆 Chọn loại chiến tích muốn xem:", reply_markup)
             return
 
@@ -255,30 +292,37 @@ def handle_callback(chat_id, data_callback):
             msg = "🏰 <b>Top 10 làng chính:</b>\n"
             for i, m in enumerate(top, 1):
                 msg += f"{i}. {m.get('name','?')} - 🏆 {m.get('trophies',0)}\n"
+                msg += "\n\n🔙 /menu để quay lại hoặc chọn nút bên dưới."
+                send_message(chat_id, msg, {"inline_keyboard": [[{"text": "🔙 Trở về", "callback_data": "show_members"}]]})
+                return
 
         elif data_callback == "top_builder":
             top = sorted(members, key=lambda m: m.get("builderBaseTrophies", 0), reverse=True)[:10]
             msg = "⚒️ <b>Top 10 căn cứ thợ xây:</b>\n"
             for i, m in enumerate(top, 1):
                 msg += f"{i}. {m.get('name','?')} - ⚒️ {m.get('builderBaseTrophies',0)}\n"
-        # return
+                msg += "\n\n🔙 /menu để quay lại hoặc chọn nút bên dưới."
+                send_message(chat_id, msg, {"inline_keyboard": [[{"text": "🔙 Trở về", "callback_data": "show_members"}]]})
+                return
 
         elif data_callback == "top_exp":
             top = sorted(members, key=lambda m: m.get("expLevel", 0), reverse=True)[:10]
             msg = "🎓 <b>Top 10 kinh nghiệm cao nhất:</b>\n"
             for i, m in enumerate(top, 1):
                 msg += f"{i}. {m.get('name','?')} - LV {m.get('expLevel',0)}\n"
+                msg += "\n\n🔙 /menu để quay lại hoặc chọn nút bên dưới."
+                send_message(chat_id, msg, {"inline_keyboard": [[{"text": "🔙 Trở về", "callback_data": "show_members"}]]})
+                return
 
         elif data_callback == "top_hall":
             top = sorted(members, key=lambda m: m.get("townHallLevel", 0), reverse=True)[:10]
             msg = "🏰 <b>Top 10 Hall cao nhất:</b>\n"
             for i, m in enumerate(top, 1):
                 msg += f"{i}. {m.get('name','?')} - Hall {m.get('townHallLevel',0)}\n"
-                
-
-
-        # send_message(chat_id, msg, reply_markup)
-        # send_message(chat_id, msg)
+                msg += "\n\n🔙 /menu để quay lại hoặc chọn nút bên dưới."
+                send_message(chat_id, msg, {"inline_keyboard": [[{"text": "🔙 Trở về", "callback_data": "show_members"}]]})
+                return
+ 
         if msg:
             send_message(chat_id, msg)
         else:
