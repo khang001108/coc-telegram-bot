@@ -174,14 +174,6 @@ def handle_callback(chat_id, data_callback):
 # ==============================
 # 5️⃣ CALLBACK XỬ LÝ NÚT (CẬP NHẬT /currentwar)
 # ==============================
-    # === WAR DETAIL ===
-    # if data_callback in ["top_war", "war_members"]:
-
-        # state = res.get("state", "notInWar")
-        # if state == "notInWar":
-        #     send_message(chat_id, "❌ Hiện không có war nào đang diễn ra.")
-        #     return
-
     elif data_callback == "top_war":
         url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}/currentwar"
         war_data = safe_get_json(url, headers)
@@ -255,6 +247,9 @@ def handle_callback(chat_id, data_callback):
                     [{"text": "⚒️ Căn cứ thợ xây", "callback_data": "top_builder"}],
                 ]
             }
+            send_message(chat_id, "🏆 Chọn loại chiến tích muốn xem:", reply_markup)
+            return
+
         if data_callback == "top_main":
             top = sorted(members, key=lambda m: m.get("trophies", 0), reverse=True)[:10]
             msg = "🏰 <b>Top 10 làng chính:</b>\n"
@@ -308,7 +303,7 @@ def safe_get_json(url, headers, timeout=10):
         return None
 
 # ==============================
-# 5️⃣ THIẾT LẬP WEBHOOK
+# 6️⃣ THIẾT LẬP WEBHOOK
 # ==============================
 def set_webhook():
     try:
@@ -322,7 +317,7 @@ def set_webhook():
         log("set_webhook exception:", e)
 
 # ==============================
-# 6️⃣ KHỞI ĐỘNG
+# 7️⃣ KHỞI ĐỘNG
 # ==============================
 if __name__ == '__main__':
     try:
