@@ -223,14 +223,14 @@ def handle_callback(chat_id, data_callback):
         return
 
 
-        if data_callback == "war_members":
-            msg = "👥 <b>Danh sách thành viên war:</b>\n"
-            for m in members:
-                attacks = len(m.get("attacks", []))
-                stars = sum(a.get("stars",0) for a in m.get("attacks", []))
-                msg += f"{m.get('name','?')} - {attacks}/2 - {stars}⭐\n"
-            send_message(chat_id, msg)
-            return
+    if data_callback == "war_members":
+        msg = "👥 <b>Danh sách thành viên war:</b>\n"
+        for m in members:
+            attacks = len(m.get("attacks", []))
+            stars = sum(a.get("stars",0) for a in m.get("attacks", []))
+            msg += f"{m.get('name','?')} - {attacks}/2 - {stars}⭐\n"
+        send_message(chat_id, msg)
+        return
 
     # === MEMBERS DETAIL ===
     if data_callback.startswith("top_"):
