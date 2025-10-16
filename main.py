@@ -1,4 +1,5 @@
-import requests, time, os
+import requests, time, os, json
+from urllib.parse import quote_plus
 from flask import Flask, request
 
 app = Flask(__name__)
@@ -8,11 +9,15 @@ app = Flask(__name__)
 # ==============================
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
-CLAN_TAG = os.getenv("CLAN_TAG")
+CLAN_TAG = os.getenv("CLAN_TAG") or "#YOURTAG"
 COC_API_KEY = os.getenv("COC_API_KEY")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 PORT = int(os.getenv("PORT", 10000))
 BASE_TELEGRAM = f"https://api.telegram.org/bot{BOT_TOKEN}"
+
+# tiện logging console
+def log(*args):
+    print("[LOG]", *args)
 
 # ==============================
 # 1️⃣ TRANG CHỦ
@@ -33,14 +38,12 @@ def webhook():
     message = data.get("message", {})
     callback = data.get("callback_query")
 
-    # Nếu bấm nút
     if callback:
         chat_id = callback["message"]["chat"]["id"]
         data_callback = callback["data"]
         handle_callback(chat_id, data_callback)
         return "OK", 200
 
-    # Nếu là lệnh
     if "text" in message:
         text = message["text"]
         chat_id = message["chat"]["id"]
@@ -67,24 +70,45 @@ def webhook():
 def send_message(chat_id, text, reply_markup=None):
     url = f"{BASE_TELEGRAM}/sendMessage"
     payload = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
+    headers = {"Content-Type": "application/json"}
     if reply_markup:
+        # Telegram chấp nhận object nhưng an toàn hơn serialize
         payload["reply_markup"] = reply_markup
-    requests.post(url, json=payload)
+    try:
+        r = requests.post(url, json=payload, headers=headers, timeout=10)
+        if r.status_code != 200:
+            log("Telegram sendMessage failed", r.status_code, r.text)
+    except Exception as e:
+        log("send_message exception:", e)
 
 # ==============================
 # 4️⃣ XỬ LÝ CALLBACK BUTTON
 # ==============================
 def handle_callback(chat_id, data_callback):
-    headers = {"Authorization": f"Bearer {COC_API_KEY}"}
-    clan_tag_encoded = CLAN_TAG.replace("#", "%23")
+    if not COC_API_KEY:
+        send_message(chat_id, "❌ COC_API_KEY chưa được cấu hình trên biến môi trường.")
+        return
+
+    headers = {
+        "Authorization": f"Bearer {COC_API_KEY}",
+        "Accept": "application/json"
+    }
+
+    # url-encode clan tag (an toàn hơn replace)
+    clan_tag_encoded = quote_plus(CLAN_TAG)
 
     # CLAN INFO
     if data_callback == "show_clan":
         url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}"
-        res = requests.get(url, headers=headers).json()
+        res = safe_get_json(url, headers)
+        if not res:
+            send_message(chat_id, "❌ Lỗi khi lấy thông tin clan.")
+            return
+
+        leader = next((m['name'] for m in res.get('memberList', []) if m.get('role') == 'leader'), 'Không rõ')
         msg = (
             f"🏰 <b>{res.get('name', '?')}</b> (Cấp {res.get('clanLevel', 0)})\n"
-            f"👑 Thủ lĩnh: {next((m['name'] for m in res.get('memberList', []) if m['role'] == 'leader'), 'Không rõ')}\n"
+            f"👑 Thủ lĩnh: {leader}\n"
             f"👥 Thành viên: {res.get('members', 0)}\n"
             f"🔥 Chuỗi thắng: {res.get('warWinStreak', 0)}\n"
             f"⚔️ War: {res.get('warWins', 0)} thắng / {res.get('warLosses', 0)} thua / {res.get('warTies', 0)} hòa"
@@ -95,7 +119,11 @@ def handle_callback(chat_id, data_callback):
     # WAR INFO
     if data_callback == "show_war":
         url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}/currentwar"
-        res = requests.get(url, headers=headers).json()
+        res = safe_get_json(url, headers)
+        if not res:
+            send_message(chat_id, "❌ Lỗi khi lấy thông tin war.")
+            return
+
         if res.get("state") == "notInWar":
             send_message(chat_id, "❌ Không có war đang diễn ra.")
             return
@@ -133,15 +161,18 @@ def handle_callback(chat_id, data_callback):
     # === WAR DETAIL ===
     if data_callback in ["top_war", "war_members"]:
         url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}/currentwar"
-        war_data = requests.get(url, headers=headers).json()
+        war_data = safe_get_json(url, headers)
+        if not war_data:
+            send_message(chat_id, "❌ Lỗi khi lấy dữ liệu war.")
+            return
         members = war_data.get("clan", {}).get("members", [])
 
         if data_callback == "top_war":
-            top = sorted(members, key=lambda m: sum(a["stars"] for a in m.get("attacks", [])), reverse=True)[:5]
+            top = sorted(members, key=lambda m: sum(a.get("stars",0) for a in m.get("attacks", [])), reverse=True)[:5]
             msg = "🏅 <b>Top 5 người đánh nhiều sao nhất:</b>\n"
             for i, m in enumerate(top, 1):
-                stars = sum(a["stars"] for a in m.get("attacks", []))
-                msg += f"{i}. {m['name']} - ⭐ {stars}\n"
+                stars = sum(a.get("stars",0) for a in m.get("attacks", []))
+                msg += f"{i}. {m.get('name','?')} - ⭐ {stars}\n"
             send_message(chat_id, msg)
             return
 
@@ -149,50 +180,80 @@ def handle_callback(chat_id, data_callback):
             msg = "👥 <b>Danh sách thành viên war:</b>\n"
             for m in members:
                 attacks = len(m.get("attacks", []))
-                stars = sum(a["stars"] for a in m.get("attacks", []))
-                msg += f"{m['name']} - {attacks}/2 - {stars}⭐\n"
+                stars = sum(a.get("stars",0) for a in m.get("attacks", []))
+                msg += f"{m.get('name','?')} - {attacks}/2 - {stars}⭐\n"
             send_message(chat_id, msg)
             return
 
     # === MEMBERS DETAIL ===
     if data_callback.startswith("top_"):
         url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}"
-        data = requests.get(url, headers=headers).json()
+        data = safe_get_json(url, headers)
+        if not data:
+            send_message(chat_id, "❌ Lỗi khi lấy danh sách thành viên.")
+            return
         members = data.get("memberList", [])
 
         if data_callback == "top_exp":
             top = sorted(members, key=lambda m: m.get("expLevel", 0), reverse=True)[:10]
             msg = "🎓 <b>Top 10 kinh nghiệm cao nhất:</b>\n"
             for i, m in enumerate(top, 1):
-                msg += f"{i}. {m['name']} - LV {m['expLevel']}\n"
+                msg += f"{i}. {m.get('name','?')} - LV {m.get('expLevel',0)}\n"
 
         elif data_callback == "top_main":
             top = sorted(members, key=lambda m: m.get("trophies", 0), reverse=True)[:10]
             msg = "🏰 <b>Top 10 làng chính:</b>\n"
             for i, m in enumerate(top, 1):
-                msg += f"{i}. {m['name']} - 🏆 {m['trophies']}\n"
+                msg += f"{i}. {m.get('name','?')} - 🏆 {m.get('trophies',0)}\n"
 
         elif data_callback == "top_builder":
             top = sorted(members, key=lambda m: m.get("builderBaseTrophies", 0), reverse=True)[:10]
             msg = "⚒️ <b>Top 10 căn cứ thợ xây:</b>\n"
             for i, m in enumerate(top, 1):
-                msg += f"{i}. {m['name']} - ⚒️ {m['builderBaseTrophies']}\n"
+                msg += f"{i}. {m.get('name','?')} - ⚒️ {m.get('builderBaseTrophies',0)}\n"
 
         elif data_callback == "top_capital":
+            # đảm bảo default 0 nếu field không có
             top = sorted(members, key=lambda m: m.get("clanCapitalContributions", 0), reverse=True)[:10]
             msg = "🏆 <b>Top 10 Kinh đô hội:</b>\n"
             for i, m in enumerate(top, 1):
-                msg += f"{i}. {m['name']} - 💰 {m['clanCapitalContributions']}\n"
+                val = m.get("clanCapitalContributions", 0)
+                msg += f"{i}. {m.get('name','?')} - 💰 {val:,}\n"  # format với dấu phẩy
+        else:
+            msg = "Không có lựa chọn."
 
         send_message(chat_id, msg)
         return
+
+# Helper: safe GET + JSON + logging
+def safe_get_json(url, headers, timeout=10):
+    try:
+        r = requests.get(url, headers=headers, timeout=timeout)
+    except Exception as e:
+        log("Request exception:", e)
+        return None
+    if r.status_code != 200:
+        log("COC API returned", r.status_code, r.text[:300])
+        return None
+    try:
+        return r.json()
+    except Exception as e:
+        log("JSON decode error:", e, r.text[:300])
+        return None
 
 # ==============================
 # 5️⃣ THIẾT LẬP WEBHOOK
 # ==============================
 def set_webhook():
-    requests.get(f"{BASE_TELEGRAM}/deleteWebhook")
-    requests.get(f"{BASE_TELEGRAM}/setWebhook?url={WEBHOOK_URL}/webhook")
+    try:
+        requests.get(f"{BASE_TELEGRAM}/deleteWebhook", timeout=5)
+        if WEBHOOK_URL:
+            requests.get(f"{BASE_TELEGRAM}/setWebhook?url={WEBHOOK_URL}/webhook", timeout=5)
+            log("Webhook set to", WEBHOOK_URL)
+        else:
+            log("WEBHOOK_URL not set; skipping setWebhook")
+    except Exception as e:
+        log("set_webhook exception:", e)
 
 # ==============================
 # 6️⃣ KHỞI ĐỘNG
