@@ -182,20 +182,46 @@ def handle_callback(chat_id, data_callback):
             return
         members = war_data.get("clan", {}).get("members", [])
 
-        if data_callback == "top_war":
+        # state = res.get("state", "notInWar")
+        # if state == "notInWar":
+        #     send_message(chat_id, "❌ Hiện không có war nào đang diễn ra.")
+        #     return
+
+        elif data_callback == "top_war":
+            # url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}/currentwar"
+            # war_data = safe_get_json(url, headers)
+            if not war_data:
+                send_message(chat_id, "❌ Lỗi khi lấy dữ liệu war.")
+                return
+
+            state = war_data.get("state", "notInWar")
+            members = war_data.get("clan", {}).get("members", [])
+
+            msg = ""
             if state == "preparation":
                 msg += "🕐 Trạng thái: <b>Trong ngày chuẩn bị</b>\n"
                 msg += "<b>( Chưa có dữ liệu! )</b>\n"
+
             elif state == "inWar":
-                # msg += "🔥 Trạng thái: <b>Trong ngày chiến đấu</b>\n"
-                top = sorted(members, key=lambda m: sum(a.get("stars",0) for a in m.get("attacks", [])), reverse=True)[:5]
                 msg = "🏅 <b>Top 5 người đánh nhiều sao nhất:</b>\n"
+                top = sorted(
+                    members,
+                    key=lambda m: sum(a.get("stars", 0) for a in m.get("attacks", [])),
+                    reverse=True
+                )[:5]
                 for i, m in enumerate(top, 1):
-                    stars = sum(a.get("stars",0) for a in m.get("attacks", []))
-                    msg += f"{i}. {m.get('name','?')} - ⭐ {stars}\n"
-                send_message(chat_id, msg)
-                return
+                    stars = sum(a.get("stars", 0) for a in m.get("attacks", []))
+                    msg += f"{i}. {m.get('name', '?')} - ⭐ {stars}\n"
+
+            elif state == "warEnded":
+                msg += "🏁 <b>Trận chiến đã kết thúc!</b>\n"
+
+            else:
+                msg += "❌ Hiện không có war nào đang diễn ra.\n"
+
+            send_message(chat_id, msg)
             return
+
 
         if data_callback == "war_members":
             msg = "👥 <b>Danh sách thành viên war:</b>\n"
