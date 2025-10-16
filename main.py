@@ -187,12 +187,13 @@ def handle_callback(chat_id, data_callback):
 
     # === MEMBERS DETAIL ===
     if data_callback.startswith("top_"):
+        # ⚠️ Dùng endpoint /members để lấy clanCapitalContributions
         url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}/members"
         data = safe_get_json(url, headers)
         if not data:
             send_message(chat_id, "❌ Lỗi khi lấy danh sách thành viên.")
             return
-        members = data.get("memberList", [])
+        members = data.get("items", [])  # endpoint này dùng "items" thay vì "memberList"
 
         if data_callback == "top_exp":
             top = sorted(members, key=lambda m: m.get("expLevel", 0), reverse=True)[:10]
@@ -213,12 +214,14 @@ def handle_callback(chat_id, data_callback):
                 msg += f"{i}. {m.get('name','?')} - ⚒️ {m.get('builderBaseTrophies',0)}\n"
 
         elif data_callback == "top_capital":
-            # đảm bảo default 0 nếu field không có
             top = sorted(members, key=lambda m: m.get("clanCapitalContributions", 0), reverse=True)[:10]
             msg = "🏆 <b>Top 10 Kinh đô hội:</b>\n"
+            total = 0
             for i, m in enumerate(top, 1):
                 val = m.get("clanCapitalContributions", 0)
-                msg += f"{i}. {m.get('name','?')} - 💰 {val:,}\n"  # format với dấu phẩy
+                total += val
+                msg += f"{i}. {m.get('name','?')} - 💰 {val:,}\n"
+            msg += f"\n📈 <b>Tổng đóng góp top 10:</b> {total:,}"
         else:
             msg = "Không có lựa chọn."
 
