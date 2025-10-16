@@ -187,7 +187,7 @@ def handle_callback(chat_id, data_callback):
 
     # === MEMBERS DETAIL ===
     if data_callback.startswith("top_"):
-        url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}"
+        url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}/members"
         data = safe_get_json(url, headers)
         if not data:
             send_message(chat_id, "❌ Lỗi khi lấy danh sách thành viên.")
