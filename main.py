@@ -49,17 +49,12 @@ def webhook():
                 "inline_keyboard": [
                     [{"text": "🏰 Clan", "callback_data": "show_clan"}],
                     [{"text": "⚔️ War", "callback_data": "show_war"}],
-                    [{"text": "👥 Members", "callback_data": "show_members"}]
+                    [{"text": "👥 Members", "callback_data": "show_members"}],
                     [{"text": "🔍 Check", "callback_data": "show_check"}]
 
                 ]
             }
             send_message(chat_id, "📋 Chọn chức năng:", reply_markup)
-
-        # elif text.startswith("/check"):
-        #     send_message(chat_id, "🔍 Đang kiểm tra clan...")
-        #     send_message(chat_id, "✅ Đã kiểm tra xong!")
-
     return "OK", 200
 
 # ==============================
@@ -108,9 +103,9 @@ def handle_callback(chat_id, data_callback):
             f"🏰 <b>{res.get('name', '?')}</b> (Cấp {res.get('clanLevel', 0)})\n"
             f"👑 Thủ lĩnh: {leader}\n"
             f"🏷️ Tag: {res.get('tag', '?')}\n"
-            f"📜 Mô tả: {desc}\n\n"
+            f"📜 Mô tả: {res.get("description", "Không có mô tả")}\n"
             f"👥 Thành viên: {res.get('members', 0)}\n"
-            f"⚙️ Quyền: {type_clan}\n"
+            f"⚙️ Quyền: {res.get("type", "closed").capitalize()}\n"
             f"🔥 Chuỗi thắng: {res.get('warWinStreak', 0)}\n"
             f"⚔️ War: {res.get('warWins', 0)} thắng / {res.get('warLosses', 0)} thua / {res.get('warTies', 0)} hòa"
         )
@@ -125,7 +120,7 @@ def handle_callback(chat_id, data_callback):
             send_message(chat_id, "❌ Lỗi khi lấy thông tin war.")
             return
 
-        state = data.get("state", "notInWar")
+        state = res.get("state", "notInWar")
         if state == "notInWar":
             send_message(chat_id, "❌ Hiện không có war nào đang diễn ra.")
             return
@@ -158,18 +153,10 @@ def handle_callback(chat_id, data_callback):
         send_message(chat_id, msg, reply_markup)
         return
 
-    if handle_callback == "show_check":
+    if data_callback == "show_check":
+
         send_message(chat_id, "🔍 Đang kiểm tra clan...")
         time.sleep(2)   
-
-
-
-
-
-
-
-
-
 
     # MEMBERS INFO
     if data_callback == "show_members":
@@ -241,19 +228,19 @@ def handle_callback(chat_id, data_callback):
                     [{"text": "⚒️ Căn cứ thợ xây", "callback_data": "top_builder"}],
                 ]
             }
-            if data_callback == "top_main":
-                top = sorted(members, key=lambda m: m.get("trophies", 0), reverse=True)[:10]
-                msg = "🏰 <b>Top 10 làng chính:</b>\n"
-                for i, m in enumerate(top, 1):
-                    msg += f"{i}. {m.get('name','?')} - 🏆 {m.get('trophies',0)}\n"
+        if data_callback == "top_main":
+            top = sorted(members, key=lambda m: m.get("trophies", 0), reverse=True)[:10]
+            msg = "🏰 <b>Top 10 làng chính:</b>\n"
+            for i, m in enumerate(top, 1):
+                msg += f"{i}. {m.get('name','?')} - 🏆 {m.get('trophies',0)}\n"
 
-            elif data_callback == "top_builder":
-                top = sorted(members, key=lambda m: m.get("builderBaseTrophies", 0), reverse=True)[:10]
-                msg = "⚒️ <b>Top 10 căn cứ thợ xây:</b>\n"
-                for i, m in enumerate(top, 1):
-                    msg += f"{i}. {m.get('name','?')} - ⚒️ {m.get('builderBaseTrophies',0)}\n"
-            send_message(chat_id, msg, reply_markup)
-            return
+        elif data_callback == "top_builder":
+            top = sorted(members, key=lambda m: m.get("builderBaseTrophies", 0), reverse=True)[:10]
+            msg = "⚒️ <b>Top 10 căn cứ thợ xây:</b>\n"
+            for i, m in enumerate(top, 1):
+                msg += f"{i}. {m.get('name','?')} - ⚒️ {m.get('builderBaseTrophies',0)}\n"
+        # return
+
         elif data_callback == "top_exp":
             top = sorted(members, key=lambda m: m.get("expLevel", 0), reverse=True)[:10]
             msg = "🎓 <b>Top 10 kinh nghiệm cao nhất:</b>\n"
@@ -268,6 +255,7 @@ def handle_callback(chat_id, data_callback):
                 
 
 
+        # send_message(chat_id, msg, reply_markup)
         send_message(chat_id, msg)
         return
 
