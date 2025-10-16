@@ -152,7 +152,6 @@ def handle_callback(chat_id, data_callback):
                 [{"text": "🎓 Kinh nghiệm cao nhất", "callback_data": "top_exp"}],
                 [{"text": "🏰 Làng chính", "callback_data": "top_main"}],
                 [{"text": "⚒️ Căn cứ thợ xây", "callback_data": "top_builder"}],
-                [{"text": "🏆 Kinh đô hội", "callback_data": "top_capital"}],
             ]
         }
         send_message(chat_id, "📊 Chọn bảng xếp hạng:", reply_markup)
@@ -212,37 +211,6 @@ def handle_callback(chat_id, data_callback):
             msg = "⚒️ <b>Top 10 căn cứ thợ xây:</b>\n"
             for i, m in enumerate(top, 1):
                 msg += f"{i}. {m.get('name','?')} - ⚒️ {m.get('builderBaseTrophies',0)}\n"
-
-        elif data_callback == "top_capital":
-            try:
-                capital_url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}/capitalraidseasons/current"
-                cap_data = safe_get_json(capital_url, headers)
-
-                if not cap_data or "clan" not in cap_data:
-                    send_message(chat_id, "⚠️ Không có dữ liệu Kinh đô hội (Capital).")
-                    return
-
-                members = cap_data["clan"].get("members", [])
-                if not members:
-                    send_message(chat_id, "⚠️ Chưa có dữ liệu đóng góp thành viên.")
-                    return
-
-                # Sắp xếp top 10 đóng góp nhiều nhất
-                top = sorted(members, key=lambda m: m.get("clanCapitalContributions", 0), reverse=True)[:10]
-                total = sum(m.get("clanCapitalContributions", 0) for m in top)
-
-                # Tạo nội dung tin nhắn
-                msg = "🏆 <b>Top 10 Kinh đô hội:</b>\n"
-                for i, m in enumerate(top, 1):
-                    val = m.get("clanCapitalContributions", 0)
-                    msg += f"{i}. {m.get('name', '?')} - 💰 {val:,}\n"
-
-                msg += f"\n📈 <b>Tổng đóng góp top 10:</b> {total:,}"
-
-            except Exception as e:
-                log("Capital Raid Seasons fetch error:", e)
-                send_message(chat_id, f"❌ Lỗi khi lấy dữ liệu Kinh đô hội: {e}")
-                return
 
         send_message(chat_id, msg)
         return
