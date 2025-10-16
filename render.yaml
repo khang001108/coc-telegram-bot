@@ -1,14 +1,5 @@
-import os
-import requests
-import datetime
+import requests, time, os
 from flask import Flask, request
-import hashlib
-import threading
-import time
-
-
-last_clan_hash = None
-
 
 app = Flask(__name__)
 
@@ -36,8 +27,6 @@ def home():
 @app.route('/webhook', methods=['POST'])
 def webhook():
     data = request.json
-    print("📩 Dữ liệu Telegram:", data)
-
     if not data:
         return "No data", 400
 
@@ -57,16 +46,18 @@ def webhook():
         chat_id = message["chat"]["id"]
 
         if text.startswith("/menu"):
-            send_message(chat_id, "📋 Menu:\n/clan - Thông tin hội\n/members - Danh sách thành viên\n/war - Chiến tranh hiện tại")
+            reply_markup = {
+                "inline_keyboard": [
+                    [{"text": "🏰 Clan", "callback_data": "show_clan"}],
+                    [{"text": "⚔️ War", "callback_data": "show_war"}],
+                    [{"text": "👥 Members", "callback_data": "show_members"}]
+                ]
+            }
+            send_message(chat_id, "📋 Chọn chức năng:", reply_markup)
 
-        elif text.startswith("/clan"):
-            send_clan_info(chat_id)
-
-        elif text.startswith("/war"):
-            send_war_info(chat_id)
-
-        elif text.startswith("/members"):
-            send_members_menu(chat_id)
+        elif text.startswith("/check"):
+            send_message(chat_id, "🔍 Đang kiểm tra clan...")
+            send_message(chat_id, "✅ Đã kiểm tra xong!")
 
     return "OK", 200
 
@@ -78,291 +69,137 @@ def send_message(chat_id, text, reply_markup=None):
     payload = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
     if reply_markup:
         payload["reply_markup"] = reply_markup
-    r = requests.post(url, json=payload)
-    if not r.ok:
-        print("⚠️ Gửi tin nhắn lỗi:", r.text)
-# ==============================
-# KIỂM TRA THAY ĐỔI CLAN
-# ==============================
-last_clan_hash = None
-last_leader = None
-last_clan_type = None
-last_war = {"wins": 0, "losses": 0, "ties": 0}
-last_donate_requests = set()  # theo dõi member đang xin donate
-
-def check_clan_changes():
-    global last_clan_hash, last_leader, last_clan_type, last_war, last_donate_requests
-    headers = {"Authorization": f"Bearer {COC_API_KEY}"}
-    clan_tag_encoded = CLAN_TAG.replace("#", "%23")
-    url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}"
-
-    while True:
-        try:
-            res = requests.get(url, headers=headers, timeout=10)
-            data = res.json()
-            members = data.get("memberList", [])
-            leader = next((m["name"] for m in members if m["role"] == "leader"), "")
-            clan_type = data.get("type", "open")
-
-            # Khởi tạo lần đầu
-            if last_clan_hash is None:
-                last_clan_hash = hashlib.md5(f"{leader}-{clan_type}-{data.get('warWins')}-{data.get('warLosses')}-{data.get('warTies')}".encode()).hexdigest()
-                last_leader = leader
-                last_clan_type = clan_type
-                last_war = {"wins": data.get('warWins',0), "losses": data.get('warLosses',0), "ties": data.get('warTies',0)}
-                last_donate_requests = set(m["tag"] for m in members if m.get("donationsReceived",0) > 0)
-                print("Khởi tạo hash và dữ liệu ban đầu")
-            else:
-                changes = []
-
-                # Leader thay đổi
-                if leader != last_leader:
-                    changes.append(f"👑 Leader thay đổi: {last_leader} → {leader}")
-                    last_leader = leader
-
-                # Loại clan thay đổi
-                if clan_type != last_clan_type:
-                    changes.append(f"⚙️ Loại clan thay đổi: {last_clan_type} → {clan_type}")
-                    last_clan_type = clan_type
-
-                # War thay đổi
-                if data.get('warWins') != last_war["wins"] or data.get('warLosses') != last_war["losses"] or data.get('warTies') != last_war["ties"]:
-                    changes.append(f"⚔️ War cập nhật: {last_war['wins']}-{last_war['losses']}-{last_war['ties']} → {data.get('warWins')}-{data.get('warLosses')}-{data.get('warTies')}")
-                    last_war = {"wins": data.get('warWins',0), "losses": data.get('warLosses',0), "ties": data.get('warTies',0)}
-
-                # Kiểm tra member xin donate
-                current_requests = set()
-                for m in members:
-                    if m.get("donationsReceived",0) > 0:
-                        current_requests.add(m["tag"])
-                        if m["tag"] not in last_donate_requests:
-                            changes.append(f"📝 {m['name']} đang xin lính! Hãy vào game donate nhé!")
-                last_donate_requests = current_requests
-
-                # Gửi thông báo nếu có thay đổi
-                if changes:
-                    send_message(int(CHAT_ID), "\n".join(changes))
-
-        except Exception as e:
-            print("⚠️ Lỗi kiểm tra clan:", e)
-
-        time.sleep(20)  # kiểm tra mỗi 20 giây
+    requests.post(url, json=payload)
 
 # ==============================
-# 4️⃣ THÔNG TIN CLAN
-# ==============================
-def send_clan_info(chat_id):
-    headers = {"Authorization": f"Bearer {COC_API_KEY}"}
-    clan_tag_encoded = CLAN_TAG.replace("#", "%23")
-    url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}"
-
-    res = requests.get(url, headers=headers)
-    data = res.json()
-
-    if "name" not in data:
-        send_message(chat_id, "⚠️ Không thể lấy thông tin Clan.")
-        return
-
-    name = data["name"]
-    level = data.get("clanLevel", 0)
-    leader = next((m["name"] for m in data["memberList"] if m["role"] == "leader"), "Không rõ")
-    members = data.get("members", 0)
-    desc = data.get("description", "Không có mô tả")
-    warWins = data.get("warWins", 0)
-    warLosses = data.get("warLosses", 0)
-    warTies = data.get("warTies", 0)
-    warWinStreak = data.get("warWinStreak", 0)
-    type_clan = data.get("type", "open")
-    required_trophies = data.get("requiredTrophies", 0)
-
-    # Lấy ngày tạo clan
-    created = data.get("createdDate")
-    if created:
-        created_date = datetime.datetime.strptime(created, "%Y%m%dT%H%M%S.%fZ")
-        created_date = created_date.replace(tzinfo=datetime.timezone.utc)  # gán timezone UTC
-        now_utc = datetime.datetime.now(datetime.timezone.utc)
-        days_alive = (now_utc - created_date).days
-    else:
-        days_alive = "?"
-
-    msg = (
-        f"🏰 <b>{name}</b> (Cấp {level})\n"
-        f"👑 Thủ lĩnh: <b>{leader}</b>\n"
-        f"👥 Thành viên: {members}\n"
-        f"⚙️ Quyền: {type_clan}\n"
-        f"🏆 Cúp yêu cầu: {required_trophies}\n"
-        f"🔥 Chuỗi thắng: {warWinStreak}\n\n"
-        f"📜 Mô tả: {desc}\n\n"
-        f"⚔️ Nhật ký chiến: {warWins} thắng / {warLosses} thua / {warTies} hòa\n"
-        f"📅 Ngày hoạt động: {days_alive} ngày"
-    )
-    send_message(chat_id, msg)
-
-
-
-
-# ==============================
-# 5️⃣ THÔNG TIN WAR
-# ==============================
-def send_war_info(chat_id):
-    headers = {"Authorization": f"Bearer {COC_API_KEY}"}
-    clan_tag_encoded = CLAN_TAG.replace("#", "%23")
-    url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}/currentwar"
-
-    res = requests.get(url, headers=headers)
-    data = res.json()
-
-    state = data.get("state", "notInWar")
-    if state == "notInWar":
-        send_message(chat_id, "❌ Hiện không có war nào đang diễn ra.")
-        return
-
-    clan = data.get("clan", {})
-    opponent = data.get("opponent", {})
-    team_size = data.get("teamSize", 0)
-
-    msg = (
-        f"⚔️ <b>{clan.get('name', '?')}</b> 🆚 <b>{opponent.get('name', '?')}</b>\n"
-        f"⭐ {clan.get('stars', 0)} - {opponent.get('stars', 0)}\n"
-        f"🎯 Lượt đánh: {clan.get('attacks', 0)}/{team_size} - Địch: {opponent.get('attacks', 0)}/{team_size}\n"
-    )
-
-    if state == "preparation":
-        msg += "🕐 Trạng thái: <b>Trong ngày chuẩn bị</b>\n"
-    elif state == "inWar":
-        msg += "🔥 Trạng thái: <b>Trong ngày chiến</b>\n"
-    elif state == "warEnded":
-        msg += "🏁 Trận chiến đã kết thúc!\n"
-
-    msg += f"👥 Thành viên tham gia: {team_size}"
-
-    reply_markup = {
-        "inline_keyboard": [
-            [{"text": "🔝 Top War", "callback_data": "top_war"},
-             {"text": "⚔️ Chưa đánh", "callback_data": "not_attack"}]
-        ]
-    }
-    send_message(chat_id, msg, reply_markup)
-
-# ==============================
-# 6️⃣ DANH SÁCH THÀNH VIÊN
-# ==============================
-def send_members_menu(chat_id):
-    reply_markup = {
-        "inline_keyboard": [
-            [{"text": "🪖 Top Donate", "callback_data": "top_donate"},
-             {"text": "⚔️ Top Chiến tích", "callback_data": "top_trophies"}],
-            [{"text": "🕒 Top Online", "callback_data": "top_online"},
-             {"text": "🏰 Top Hall", "callback_data": "top_hall"}]
-        ]
-    }
-    send_message(chat_id, "📋 Chọn bảng xếp hạng thành viên:", reply_markup)
-
-# ==============================
-# 7️⃣ CALLBACK XỬ LÝ NÚT (CẬP NHẬT /currentwar)
+# 4️⃣ XỬ LÝ CALLBACK BUTTON
 # ==============================
 def handle_callback(chat_id, data_callback):
     headers = {"Authorization": f"Bearer {COC_API_KEY}"}
     clan_tag_encoded = CLAN_TAG.replace("#", "%23")
 
-    try:
-        # Lấy dữ liệu war hiện tại
-        war_url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}/currentwar"
-        war_res = requests.get(war_url, headers=headers, timeout=10)
-        war_res.raise_for_status()
-        war_data = war_res.json()
-
-        # Lấy dữ liệu danh sách clan để các nút /members
-        clan_url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}"
-        clan_res = requests.get(clan_url, headers=headers, timeout=10)
-        clan_res.raise_for_status()
-        clan_data = clan_res.json()
-    except Exception as e:
-        send_message(chat_id, f"⚠️ Lỗi lấy dữ liệu: {e}")
-        return
-
-    # ==================== /members buttons ====================
-    members = clan_data.get("memberList", [])
-    if data_callback == "top_donate":
-        top = sorted(members, key=lambda m: m.get("donations", 0), reverse=True)[:5]
-        msg = "🪖 <b>Top 5 Donate:</b>\n"
-        for i, m in enumerate(top, start=1):
-            msg += f"{i}. {m['name']} - {m.get('donations', 0)} lính\n"
-        send_message(chat_id, msg)
-        return
-
-    if data_callback == "top_trophies":
-        top = sorted(members, key=lambda m: m.get("trophies", 0), reverse=True)[:5]
-        msg = "⚔️ <b>Top 5 Chiến tích:</b>\n"
-        for i, m in enumerate(top, start=1):
-            msg += f"{i}. {m['name']} - 🏆 {m.get('trophies', 0)} cúp\n"
-        send_message(chat_id, msg)
-        return
-
-    if data_callback == "top_hall":
-        top = sorted(members, key=lambda m: m.get("townHallLevel", 0), reverse=True)[:5]
-        msg = "🏰 <b>Top 5 Town Hall:</b>\n"
-        for i, m in enumerate(top, start=1):
-            msg += f"{i}. {m['name']} - TH {m.get('townHallLevel', '?')}\n"
-        send_message(chat_id, msg)
-        return
-
-    if data_callback == "top_online":
-        send_message(chat_id,
-            "🕒 Clash API không cung cấp dữ liệu online trực tiếp.\n"
-            "👉 Có thể thay bằng thống kê donate/hoạt động gần nhất.")
-        return
-
-    # ==================== /war buttons ====================
-    if "clan" not in war_data:
-        send_message(chat_id, "⚠️ Hiện không có war đang diễn ra.")
-        return
-
-    war_members = war_data["clan"].get("members", [])
-    if data_callback == "top_war":
-        top_players = sorted(
-            war_members,
-            key=lambda m: sum(a["stars"] for a in m.get("attacks", [])),
-            reverse=True
+    # CLAN INFO
+    if data_callback == "show_clan":
+        url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}"
+        res = requests.get(url, headers=headers).json()
+        msg = (
+            f"🏰 <b>{res.get('name', '?')}</b> (Cấp {res.get('clanLevel', 0)})\n"
+            f"👑 Thủ lĩnh: {next((m['name'] for m in res.get('memberList', []) if m['role'] == 'leader'), 'Không rõ')}\n"
+            f"👥 Thành viên: {res.get('members', 0)}\n"
+            f"🔥 Chuỗi thắng: {res.get('warWinStreak', 0)}\n"
+            f"⚔️ War: {res.get('warWins', 0)} thắng / {res.get('warLosses', 0)} thua / {res.get('warTies', 0)} hòa"
         )
-        msg = "🏅 <b>Top 3 người đánh war tốt nhất:</b>\n"
-        for i, m in enumerate(top_players[:3], start=1):
-            stars = sum(a["stars"] for a in m.get("attacks", []))
-            msg += f"{i}. {m['name']} - ⭐ {stars}\n"
         send_message(chat_id, msg)
         return
 
-    if data_callback == "not_attack":
-        not_attacked = [
-            m["name"] for m in war_members
-            if "attacks" not in m or len(m["attacks"]) == 0
-        ]
-        if not not_attacked:
-            msg = "✅ Tất cả thành viên trong war đã đánh!"
-        else:
-            msg = "⚔️ <b>Thành viên chưa đánh:</b>\n" + "\n".join(not_attacked)
-        send_message(chat_id, msg)
+    # WAR INFO
+    if data_callback == "show_war":
+        url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}/currentwar"
+        res = requests.get(url, headers=headers).json()
+        if res.get("state") == "notInWar":
+            send_message(chat_id, "❌ Không có war đang diễn ra.")
+            return
+
+        clan = res.get("clan", {})
+        opponent = res.get("opponent", {})
+        team_size = res.get("teamSize", 0)
+        msg = (
+            f"⚔️ <b>{clan.get('name', '?')}</b> 🆚 <b>{opponent.get('name', '?')}</b>\n"
+            f"⭐ {clan.get('stars', 0)} - {opponent.get('stars', 0)}\n"
+            f"🎯 Lượt đánh: {clan.get('attacks', 0)}/{team_size*2} - Địch: {opponent.get('attacks', 0)}/{team_size*2}\n"
+        )
+        reply_markup = {
+            "inline_keyboard": [
+                [{"text": "🏅 Top War", "callback_data": "top_war"}],
+                [{"text": "👥 Thành viên tham gia", "callback_data": "war_members"}]
+            ]
+        }
+        send_message(chat_id, msg, reply_markup)
         return
 
-    send_message(chat_id, "⚠️ Nút không hợp lệ hoặc chưa được hỗ trợ.")
+    # MEMBERS MENU
+    if data_callback == "show_members":
+        reply_markup = {
+            "inline_keyboard": [
+                [{"text": "🎓 Kinh nghiệm cao nhất", "callback_data": "top_exp"}],
+                [{"text": "🏰 Làng chính", "callback_data": "top_main"}],
+                [{"text": "⚒️ Căn cứ thợ xây", "callback_data": "top_builder"}],
+                [{"text": "🏆 Kinh đô hội", "callback_data": "top_capital"}],
+            ]
+        }
+        send_message(chat_id, "📊 Chọn bảng xếp hạng:", reply_markup)
+        return
+
+    # === WAR DETAIL ===
+    if data_callback in ["top_war", "war_members"]:
+        url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}/currentwar"
+        war_data = requests.get(url, headers=headers).json()
+        members = war_data.get("clan", {}).get("members", [])
+
+        if data_callback == "top_war":
+            top = sorted(members, key=lambda m: sum(a["stars"] for a in m.get("attacks", [])), reverse=True)[:5]
+            msg = "🏅 <b>Top 5 người đánh nhiều sao nhất:</b>\n"
+            for i, m in enumerate(top, 1):
+                stars = sum(a["stars"] for a in m.get("attacks", []))
+                msg += f"{i}. {m['name']} - ⭐ {stars}\n"
+            send_message(chat_id, msg)
+            return
+
+        if data_callback == "war_members":
+            msg = "👥 <b>Danh sách thành viên war:</b>\n"
+            for m in members:
+                attacks = len(m.get("attacks", []))
+                stars = sum(a["stars"] for a in m.get("attacks", []))
+                msg += f"{m['name']} - {attacks}/2 - {stars}⭐\n"
+            send_message(chat_id, msg)
+            return
+
+    # === MEMBERS DETAIL ===
+    if data_callback.startswith("top_"):
+        url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}"
+        data = requests.get(url, headers=headers).json()
+        members = data.get("memberList", [])
+
+        if data_callback == "top_exp":
+            top = sorted(members, key=lambda m: m.get("expLevel", 0), reverse=True)[:10]
+            msg = "🎓 <b>Top 10 kinh nghiệm cao nhất:</b>\n"
+            for i, m in enumerate(top, 1):
+                msg += f"{i}. {m['name']} - LV {m['expLevel']}\n"
+
+        elif data_callback == "top_main":
+            top = sorted(members, key=lambda m: m.get("trophies", 0), reverse=True)[:10]
+            msg = "🏰 <b>Top 10 làng chính:</b>\n"
+            for i, m in enumerate(top, 1):
+                msg += f"{i}. {m['name']} - 🏆 {m['trophies']}\n"
+
+        elif data_callback == "top_builder":
+            top = sorted(members, key=lambda m: m.get("builderBaseTrophies", 0), reverse=True)[:10]
+            msg = "⚒️ <b>Top 10 căn cứ thợ xây:</b>\n"
+            for i, m in enumerate(top, 1):
+                msg += f"{i}. {m['name']} - ⚒️ {m['builderBaseTrophies']}\n"
+
+        elif data_callback == "top_capital":
+            top = sorted(members, key=lambda m: m.get("clanCapitalContributions", 0), reverse=True)[:10]
+            msg = "🏆 <b>Top 10 Kinh đô hội:</b>\n"
+            for i, m in enumerate(top, 1):
+                msg += f"{i}. {m['name']} - 💰 {m['clanCapitalContributions']}\n"
+
+        send_message(chat_id, msg)
+        return
 
 # ==============================
-# 8️⃣ WEBHOOK
+# 5️⃣ THIẾT LẬP WEBHOOK
 # ==============================
 def set_webhook():
     requests.get(f"{BASE_TELEGRAM}/deleteWebhook")
-    r = requests.get(f"{BASE_TELEGRAM}/setWebhook?url={WEBHOOK_URL}/webhook")
-    print("🔗 Webhook:", r.json())
+    requests.get(f"{BASE_TELEGRAM}/setWebhook?url={WEBHOOK_URL}/webhook")
 
 # ==============================
-# 9️⃣ KHỞI ĐỘNG
+# 6️⃣ KHỞI ĐỘNG
 # ==============================
 if __name__ == '__main__':
-    print("🚀 Khởi động bot Telegram Clash of Clans...")
-    set_webhook()
-
-    # Bắt đầu thread kiểm tra clan thay đổi
-    threading.Thread(target=check_clan_changes, daemon=True).start()
-
-    app.run(host='0.0.0.0', port=PORT)
-    
+    try:
+        set_webhook()
+    except Exception:
+        pass
+    app.run(host='0.0.0.0', port=PORT, debug=False, use_reloader=False)
