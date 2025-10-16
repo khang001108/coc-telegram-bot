@@ -103,7 +103,7 @@ def handle_callback(chat_id, data_callback):
             f"🏰 <b>{res.get('name', '?')}</b> (Cấp {res.get('clanLevel', 0)})\n"
             f"👑 Thủ lĩnh: {leader}\n"
             f"🏷️ Tag: {res.get('tag', '?')}\n"
-            f"📜 Mô tả: {res.get("description", "Không có mô tả")}\n"
+            f"📜 Mô tả: {res.get('description', 'Không có mô tả')}\n"
             f"👥 Thành viên: {res.get('members', 0)}\n"
             f"⚙️ Quyền: {res.get("type", "closed").capitalize()}\n"
             f"🔥 Chuỗi thắng: {res.get('warWinStreak', 0)}\n"
@@ -114,7 +114,7 @@ def handle_callback(chat_id, data_callback):
 
     # WAR INFO
     if data_callback == "show_war":
-        url = f"https://api.clashofclasns.com/v1/clans/{clan_tag_encoded}/currentwar"
+        url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}/currentwar"
         res = safe_get_json(url, headers)
         if not res:
             send_message(chat_id, "❌ Lỗi khi lấy thông tin war.")
@@ -174,13 +174,7 @@ def handle_callback(chat_id, data_callback):
 # 5️⃣ CALLBACK XỬ LÝ NÚT (CẬP NHẬT /currentwar)
 # ==============================
     # === WAR DETAIL ===
-    if data_callback in ["top_war", "war_members"]:
-        url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}/currentwar"
-        war_data = safe_get_json(url, headers)
-        if not war_data:
-            send_message(chat_id, "❌ Lỗi khi lấy dữ liệu war.")
-            return
-        members = war_data.get("clan", {}).get("members", [])
+    # if data_callback in ["top_war", "war_members"]:
 
         # state = res.get("state", "notInWar")
         # if state == "notInWar":
@@ -188,8 +182,8 @@ def handle_callback(chat_id, data_callback):
         #     return
 
     elif data_callback == "top_war":
-        # url = f"https://api.clashofclans.com/v1/classs/{clan_tag_encoded}/currentwar"
-        # war_data = safe_get_json(url, headers)
+        url = f"https://api.clashofclans.com/v1/classs/{clan_tag_encoded}/currentwar"
+        war_data = safe_get_json(url, headers)
         if not war_data:
             send_message(chat_id, "❌ Lỗi khi lấy dữ liệu war.")
             return
@@ -224,6 +218,12 @@ def handle_callback(chat_id, data_callback):
 
 
     if data_callback == "war_members":
+        url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}/currentwar"
+        war_data = safe_get_json(usrl, headers)
+        if not war_data:
+            send_message(chat_id, "❌ Lỗi khi lấy dữ liệu war.")
+            return
+        members = war_data.get("clan", {}).get("members", [])
         msg = "👥 <b>Danh sách thành viên war:</b>\n"
         for m in members:
             attacks = len(m.get("attacks", []))
@@ -234,7 +234,7 @@ def handle_callback(chat_id, data_callback):
 
     # === MEMBERS DETAIL ===
     if data_callback.startswith("top_"):
-        url = f"https://api.clashfofclans.com/v1/clans/{clan_tag_encoded}/members"
+        url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}/members"
         data = safe_get_json(url, headers)
         if not data:
             send_message(chat_id, "❌ Lỗi khi lấy danh sách thành viên.")
