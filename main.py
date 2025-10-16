@@ -215,40 +215,34 @@ def handle_callback(chat_id, data_callback):
 
         elif data_callback == "top_capital":
             try:
-            # API lấy thống kê Kinh đô hội
-            capital_url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}/capitalraidseasons?limit=1"
-            capital_res = requests.get(capital_url, headers=headers, timeout=10)
-            capital_res.raise_for_status()
-            capital_data = capital_res.json()
+                capital_url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}/capitalraidseasons/current"
+                cap_data = safe_get_json(capital_url, headers)
 
-            if "items" not in capital_data or not capital_data["items"]:
-                send_message(chat_id, "⚠️ Chưa có dữ liệu Kinh Đô Hội (Capital).")
+                if not cap_data or "clan" not in cap_data:
+                    send_message(chat_id, "⚠️ Không có dữ liệu Kinh đô hội (Capital).")
+                    return
+
+                members = cap_data["clan"].get("members", [])
+                if not members:
+                    send_message(chat_id, "⚠️ Chưa có dữ liệu đóng góp thành viên.")
+                    return
+
+                # Sắp xếp top 10 đóng góp nhiều nhất
+                top = sorted(members, key=lambda m: m.get("clanCapitalContributions", 0), reverse=True)[:10]
+                total = sum(m.get("clanCapitalContributions", 0) for m in top)
+
+                # Tạo nội dung tin nhắn
+                msg = "🏆 <b>Top 10 Kinh đô hội:</b>\n"
+                for i, m in enumerate(top, 1):
+                    val = m.get("clanCapitalContributions", 0)
+                    msg += f"{i}. {m.get('name', '?')} - 💰 {val:,}\n"
+
+                msg += f"\n📈 <b>Tổng đóng góp top 10:</b> {total:,}"
+
+            except Exception as e:
+                log("Capital Raid Seasons fetch error:", e)
+                send_message(chat_id, f"❌ Lỗi khi lấy dữ liệu Kinh đô hội: {e}")
                 return
-
-            # Lấy danh sách đóng góp từ season gần nhất
-            raids = capital_data["items"][0]
-            members_cap = raids.get("members", [])
-
-            if not members_cap:
-                send_message(chat_id, "⚠️ Không có dữ liệu đóng góp thành viên.")
-                return
-
-            # Sắp xếp top 10 theo tổng số vàng đóng góp
-            top = sorted(members_cap, key=lambda m: m.get("capitalResourcesLooted", 0), reverse=True)[:10]
-
-            total = sum(m.get("capitalResourcesLooted", 0) for m in top)
-            msg = "🏆 <b>Top 10 Kinh Đô Hội:</b>\n"
-            for i, m in enumerate(top, start=1):
-                gold = m.get("capitalResourcesLooted", 0)
-                msg += f"{i}. {m['name']} - 💰 {gold}\n"
-            msg += f"\n📈 Tổng đóng góp top 10: {total}"
-            send_message(chat_id, msg)
-
-        except Exception as e:
-            send_message(chat_id, f"⚠️ Lỗi lấy dữ liệu Kinh Đô Hội: {e}")
-        return
-        else:
-            msg = "Không có lựa chọn."
 
         send_message(chat_id, msg)
         return
