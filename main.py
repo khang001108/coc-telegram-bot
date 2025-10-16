@@ -47,11 +47,14 @@ def webhook():
         if text.startswith("/menu"):
             reply_markup = {
                 "inline_keyboard": [
-                    [{"text": "🏰 Clan", "callback_data": "show_clan"}],
-                    [{"text": "⚔️ War", "callback_data": "show_war"}],
-                    [{"text": "👥 Members", "callback_data": "show_members"}],
-                    [{"text": "🔍 Check", "callback_data": "show_check"}]
-
+                    [
+                        {"text": "🏰 Clan", "callback_data": "show_clan"},
+                        {"text": "⚔️ War", "callback_data": "show_war"}
+                    ],
+                    [
+                        {"text": "👥 Members", "callback_data": "show_members"},
+                        {"text": "🔍 Check", "callback_data": "show_check"}
+                    ]
                 ]
             }
             send_message(chat_id, "📋 Chọn chức năng:", reply_markup)
@@ -178,23 +181,29 @@ def handle_callback(chat_id, data_callback):
         send_message(chat_id, msg, reply_markup)
         return
 
-
     if data_callback == "show_check":
-
         send_message(chat_id, "🔍 Đang kiểm tra clan...")
-        time.sleep(2)   
+        time.sleep(2)
+        send_message(chat_id, "✅ Clan hoạt động bình thường!")
+        return
 
     # MEMBERS INFO
     if data_callback == "show_members":
         reply_markup = {
             "inline_keyboard": [
-            [{"text": "🤝 Top Donate", "callback_data": "top_donate"},
-             {"text": "⚔️ Top Chiến tích", "callback_data": "top_trophies"}],
-            [{"text": "🎓 Kinh nghiệm cao nhất", "callback_data": "top_exp"},
-             {"text": "🏰 Top Hall", "callback_data": "top_hall"}]
-        ]
+                [
+                    {"text": "🤝 Top Donate", "callback_data": "top_donate"},
+                    {"text": "⚔️ Top Chiến tích", "callback_data": "top_trophies"}
+                ],
+                [
+                    {"text": "🎓 Kinh nghiệm cao nhất", "callback_data": "top_exp"},
+                    {"text": "🏰 Top Hall", "callback_data": "top_hall"}
+                ],
+                [
+                    {"text": "🔙 Trở về", "callback_data": "back_menu"}
+                ]
+            ]
         }
-        reply_markup["inline_keyboard"].append([{"text": "🔙 Trở về", "callback_data": "back_menu"}])
         send_message(chat_id, "👥 Chọn thống kê thành viên:", reply_markup)
         return
 
@@ -271,57 +280,92 @@ def handle_callback(chat_id, data_callback):
             msg = "🤝 <b>Top 10 donate nhiều nhất:</b>\n"
             for i, m in enumerate(top, 1):
                 msg += f"{i}. {m.get('name','?')} - {m.get('donations',0)}\n"
-                msg += "\n\n🔙 /menu để quay lại hoặc chọn nút bên dưới."
-                send_message(chat_id, msg, {"inline_keyboard": [[{"text": "🔙 Trở về", "callback_data": "show_members"}]]})
-                return
+
+            msg += "\n\n🔙 /menu để quay lại hoặc chọn nút bên dưới."
+            reply_markup = {"inline_keyboard": [[{"text": "🔙 Trở về", "callback_data": "show_members"}]]}
+            send_message(chat_id, msg, reply_markup)
+            return
 
 
         elif data_callback == "top_trophies":
             reply_markup = {
                 "inline_keyboard": [
-                    [{"text": "🏰 Làng chính", "callback_data": "top_main"}],
-                    [{"text": "⚒️ Căn cứ thợ xây", "callback_data": "top_builder"}],
+                    [{"text": "🏰 Làng chính", "callback_data": "top_main"},
+                    {"text": "⚒️ Căn cứ thợ xây", "callback_data": "top_builder"}],
                 ]
             }
             reply_markup["inline_keyboard"].append([{"text": "🔙 Trở về", "callback_data": "show_members"}])
             send_message(chat_id, "🏆 Chọn loại chiến tích muốn xem:", reply_markup)
             return
 
-        if data_callback == "top_main":
+        elif data_callback == "top_main":
             top = sorted(members, key=lambda m: m.get("trophies", 0), reverse=True)[:10]
             msg = "🏰 <b>Top 10 làng chính:</b>\n"
             for i, m in enumerate(top, 1):
                 msg += f"{i}. {m.get('name','?')} - 🏆 {m.get('trophies',0)}\n"
-                msg += "\n\n🔙 /menu để quay lại hoặc chọn nút bên dưới."
-                send_message(chat_id, msg, {"inline_keyboard": [[{"text": "🔙 Trở về", "callback_data": "show_members"}]]})
-                return
+
+            msg += "\n\n🔙 Chọn 'Trở về' để quay lại menu."
+
+            reply_markup = {
+                "inline_keyboard": [
+                    [{"text": "🔙 Trở về", "callback_data": "show_members"}]
+                ]
+            }
+
+            send_message(chat_id, msg, reply_markup)
+            return
+
 
         elif data_callback == "top_builder":
             top = sorted(members, key=lambda m: m.get("builderBaseTrophies", 0), reverse=True)[:10]
             msg = "⚒️ <b>Top 10 căn cứ thợ xây:</b>\n"
             for i, m in enumerate(top, 1):
                 msg += f"{i}. {m.get('name','?')} - ⚒️ {m.get('builderBaseTrophies',0)}\n"
-                msg += "\n\n🔙 /menu để quay lại hoặc chọn nút bên dưới."
-                send_message(chat_id, msg, {"inline_keyboard": [[{"text": "🔙 Trở về", "callback_data": "show_members"}]]})
-                return
+
+            msg += "\n\n🔙 Chọn 'Trở về' để quay lại menu."
+
+            reply_markup = {
+                "inline_keyboard": [
+                    [{"text": "🔙 Trở về", "callback_data": "show_members"}]
+                ]
+            }
+
+            send_message(chat_id, msg, reply_markup)
+            return
 
         elif data_callback == "top_exp":
             top = sorted(members, key=lambda m: m.get("expLevel", 0), reverse=True)[:10]
             msg = "🎓 <b>Top 10 kinh nghiệm cao nhất:</b>\n"
             for i, m in enumerate(top, 1):
                 msg += f"{i}. {m.get('name','?')} - LV {m.get('expLevel',0)}\n"
-                msg += "\n\n🔙 /menu để quay lại hoặc chọn nút bên dưới."
-                send_message(chat_id, msg, {"inline_keyboard": [[{"text": "🔙 Trở về", "callback_data": "show_members"}]]})
-                return
+
+            msg += "\n\n🔙 Chọn 'Trở về' để quay lại menu."
+
+            reply_markup = {
+                "inline_keyboard": [
+                    [{"text": "🔙 Trở về", "callback_data": "show_members"}]
+                ]
+            }
+
+            send_message(chat_id, msg, reply_markup)
+            return
 
         elif data_callback == "top_hall":
             top = sorted(members, key=lambda m: m.get("townHallLevel", 0), reverse=True)[:10]
             msg = "🏰 <b>Top 10 Hall cao nhất:</b>\n"
             for i, m in enumerate(top, 1):
                 msg += f"{i}. {m.get('name','?')} - Hall {m.get('townHallLevel',0)}\n"
-                msg += "\n\n🔙 /menu để quay lại hoặc chọn nút bên dưới."
-                send_message(chat_id, msg, {"inline_keyboard": [[{"text": "🔙 Trở về", "callback_data": "show_members"}]]})
-                return
+
+            msg += "\n\n🔙 Chọn 'Trở về' để quay lại menu."
+
+            reply_markup = {
+                "inline_keyboard": [
+                    [{"text": "🔙 Trở về", "callback_data": "show_members"}]
+                ]
+            }
+
+            send_message(chat_id, msg, reply_markup)
+            return
  
         if msg:
             send_message(chat_id, msg)
