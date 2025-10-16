@@ -78,6 +78,7 @@ def send_message(chat_id, text, reply_markup=None):
 # 4️⃣ GIAO DIỆN BUTTON
 # ==============================
 def handle_callback(chat_id, data_callback):
+    msg = None
     if not COC_API_KEY:
         send_message(chat_id, "❌ COC_API_KEY chưa được cấu hình trên biến môi trường.")
         return
@@ -105,7 +106,7 @@ def handle_callback(chat_id, data_callback):
             f"🏷️ Tag: {res.get('tag', '?')}\n"
             f"📜 Mô tả: {res.get('description', 'Không có mô tả')}\n"
             f"👥 Thành viên: {res.get('members', 0)}\n"
-            f"⚙️ Quyền: {res.get("type", "closed").capitalize()}\n"
+            f"⚙️ Quyền: {res.get('type', 'closed').capitalize()}\n"
             f"🔥 Chuỗi thắng: {res.get('warWinStreak', 0)}\n"
             f"⚔️ War: {res.get('warWins', 0)} thắng / {res.get('warLosses', 0)} thua / {res.get('warTies', 0)} hòa"
         )
@@ -182,7 +183,7 @@ def handle_callback(chat_id, data_callback):
         #     return
 
     elif data_callback == "top_war":
-        url = f"https://api.clashofclans.com/v1/classs/{clan_tag_encoded}/currentwar"
+        url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}/currentwar"
         war_data = safe_get_json(url, headers)
         if not war_data:
             send_message(chat_id, "❌ Lỗi khi lấy dữ liệu war.")
@@ -219,7 +220,7 @@ def handle_callback(chat_id, data_callback):
 
     if data_callback == "war_members":
         url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}/currentwar"
-        war_data = safe_get_json(usrl, headers)
+        war_data = safe_get_json(url, headers)
         if not war_data:
             send_message(chat_id, "❌ Lỗi khi lấy dữ liệu war.")
             return
@@ -282,7 +283,12 @@ def handle_callback(chat_id, data_callback):
 
 
         # send_message(chat_id, msg, reply_markup)
-        send_message(chat_id, msg)
+        # send_message(chat_id, msg)
+        if msg:
+            send_message(chat_id, msg)
+        else:
+            send_message(chat_id, f"❓ Không hiểu lệnh: {data_callback}")
+
         return
 
 # Helper: safe GET + JSON + logging
