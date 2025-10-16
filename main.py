@@ -146,8 +146,8 @@ def handle_callback(chat_id, data_callback):
 
         reply_markup = {
             "inline_keyboard": [
-                [{"text": "⚔️ Top War", "callback_data": "top_war"}],
-                [{"text": "👥 Thành viên tham gia", "callback_data": "war_members"}]
+                [{"text": "⚔️ Top War", "callback_data": "top_war"},
+                {"text": "👥 Thành viên tham gia", "callback_data": "war_members"}]
             ]
         }
         send_message(chat_id, msg, reply_markup)
