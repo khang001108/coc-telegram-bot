@@ -245,8 +245,10 @@ def handle_callback(chat_id, data_callback):
             msg += "❌ Hiện không có war nào đang diễn ra.\n"
 
         msg += "\n\n🔙 /menu để quay lại hoặc chọn nút bên dưới."
-        send_message(chat_id, msg)
+
+        send_message(chat_id, msg, {"inline_keyboard": [[{"text": "🔙 Trở về", "callback_data": "show_war"}]]})
         return
+
 
 
     if data_callback == "war_members":
@@ -263,7 +265,7 @@ def handle_callback(chat_id, data_callback):
             msg += f"{m.get('name','?')} - {attacks}/2 - {stars}⭐\n"
         
         msg += "\n\n🔙 /menu để quay lại hoặc chọn nút bên dưới."
-        send_message(chat_id, msg, {"inline_keyboard": [[{"text": "🔙 Trở về", "callback_data": "show_members"}]]})
+        send_message(chat_id, msg, {"inline_keyboard": [[{"text": "🔙 Trở về", "callback_data": "show_war"}]]})
         return
 
     # === MEMBERS DETAIL ===
