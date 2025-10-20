@@ -278,7 +278,37 @@ def handle_callback(chat_id, data_callback):
 
     # ==============================
     # XỬ LÝ NÚT AUTO UPDATE
-    # ==============================
+    # ==============================    
+    if data_callback.startswith("auto_"):
+        global AUTO_THREAD, AUTO_RUNNING, AUTO_INTERVAL
+
+        if data_callback == "auto_stop":
+            AUTO_RUNNING = False
+            AUTO_INTERVAL = 0
+            send_message(chat_id, "🛑 Đã tắt tự động cập nhật.")
+            return
+
+
+        # Thời gian (giây)
+        intervals = {
+            "auto_1m": 60,
+            "auto_10m": 600,
+            "auto_30m": 1800,
+            "auto_1h": 3600,
+            "auto_3h": 10800,
+            "auto_6h": 21600,
+        }
+        interval = intervals[data_callback]
+
+        if AUTO_RUNNING:
+            send_message(chat_id, "⚠️ Tự động đang chạy. Hãy tắt trước khi bật lại.")
+            return
+
+        AUTO_THREAD = threading.Thread(target=auto_send_updates, args=(chat_id, interval))
+        AUTO_THREAD.daemon = True
+        AUTO_THREAD.start()
+        return
+    
     if data_callback == "auto_update":
         # Hiển thị trạng thái hiện tại
         if AUTO_RUNNING:
@@ -314,36 +344,6 @@ def handle_callback(chat_id, data_callback):
         send_message(chat_id, f"🕒 Chọn thời gian tự động cập nhật war:\n\n{status_text}", reply_markup)
         return
 
-    
-    if data_callback.startswith("auto_"):
-        global AUTO_THREAD, AUTO_RUNNING, AUTO_INTERVAL
-
-        if data_callback == "auto_stop":
-            AUTO_RUNNING = False
-            AUTO_INTERVAL = 0
-            send_message(chat_id, "🛑 Đã tắt tự động cập nhật.")
-            return
-
-
-        # Thời gian (giây)
-        intervals = {
-            "auto_1m": 60,
-            "auto_10m": 600,
-            "auto_30m": 1800,
-            "auto_1h": 3600,
-            "auto_3h": 10800,
-            "auto_6h": 21600,
-        }
-        interval = intervals[data_callback]
-
-        if AUTO_RUNNING:
-            send_message(chat_id, "⚠️ Tự động đang chạy. Hãy tắt trước khi bật lại.")
-            return
-
-        AUTO_THREAD = threading.Thread(target=auto_send_updates, args=(chat_id, interval))
-        AUTO_THREAD.daemon = True
-        AUTO_THREAD.start()
-        return
 
 
 # ==============================
