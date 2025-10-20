@@ -108,28 +108,34 @@ def main_menu_markup():
 # TỰ ĐỘNG CẬP NHẬT WAR
 # ==============================
 def auto_send_updates(chat_id, interval):
-    global AUTO_RUNNING, AUTO_INTERVAL  # 🔹 Khai báo ngay đầu hàm
+    global AUTO_RUNNING
     AUTO_RUNNING = True
-    AUTO_INTERVAL = interval
     end_time = time.time() + interval
 
     send_message(chat_id, f"✅ Đã bật tự động cập nhật mỗi {interval/60:.0f} phút!")
 
     while AUTO_RUNNING and time.time() < end_time:
         try:
-            # Gửi thông tin WAR
             headers = {"Authorization": f"Bearer {COC_API_KEY}", "Accept": "application/json"}
             clan_tag_encoded = quote_plus(CLAN_TAG)
 
             war_url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}/currentwar"
             war_data = safe_get_json(war_url, headers)
 
-            # 🛑 Chỉ gửi nếu đang trong WAR
-            if not war_data or war_data.get("state") != "inWar":
-                log("⏸️ Không có war đang diễn ra, bỏ qua cập nhật...")
+            if not war_data:
                 time.sleep(interval)
                 continue
 
+            # ⚙️ Kiểm tra trạng thái war
+            state = war_data.get("state", "")
+            if state != "inWar":
+                log(f"⏸️ War state: {state} → Không gửi thông báo.")
+                time.sleep(interval)
+                continue
+
+            # =========================
+            # 🔥 ĐANG TRONG WAR → GỬI
+            # =========================
             clan = war_data.get("clan", {})
             opponent = war_data.get("opponent", {})
 
@@ -140,6 +146,7 @@ def auto_send_updates(chat_id, interval):
             )
             send_message(chat_id, msg)
 
+            # --- WAR MEMBERS ---
             members = clan.get("members", [])
             msg_members = "👥 <b>Danh sách war:</b>\n"
             for m in members:
@@ -154,7 +161,6 @@ def auto_send_updates(chat_id, interval):
         time.sleep(interval)
     
     AUTO_RUNNING = False
-    AUTO_INTERVAL = 0
     send_message(chat_id, "🕒 Tự động cập nhật đã kết thúc!")
 
 # ==============================
@@ -276,9 +282,15 @@ def handle_callback(chat_id, data_callback):
     if data_callback == "auto_update":
         # Hiển thị trạng thái hiện tại
         if AUTO_RUNNING:
-            status_text = f"🔵 Đang bật tự động cập nhật mỗi {int(AUTO_INTERVAL/60)} phút."
+            minutes = int(AUTO_INTERVAL / 60)
+            if minutes < 60:
+                status_text = f"🔵 Đang bật tự động cập nhật mỗi {minutes} phút."
+            else:
+                hours = minutes / 60
+                status_text = f"🔵 Đang bật tự động cập nhật mỗi {hours:.0f} giờ."
         else:
             status_text = "⚪ Hiện đang tắt tự động cập nhật."
+
 
         reply_markup = {
             "inline_keyboard": [
@@ -308,8 +320,10 @@ def handle_callback(chat_id, data_callback):
 
         if data_callback == "auto_stop":
             AUTO_RUNNING = False
+            AUTO_INTERVAL = 0
             send_message(chat_id, "🛑 Đã tắt tự động cập nhật.")
             return
+
 
         # Thời gian (giây)
         intervals = {
