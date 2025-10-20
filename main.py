@@ -282,14 +282,18 @@ def handle_callback(chat_id, data_callback):
     if data_callback.startswith("auto_"):
         global AUTO_THREAD, AUTO_RUNNING, AUTO_INTERVAL
 
+        # Nếu là auto_update, bỏ qua vì nó đã xử lý ở trên
+        if data_callback == "auto_update":
+            return
+
+        # Nếu là auto_stop thì tắt tự động
         if data_callback == "auto_stop":
             AUTO_RUNNING = False
             AUTO_INTERVAL = 0
             send_message(chat_id, "🛑 Đã tắt tự động cập nhật.")
             return
 
-
-        # Thời gian (giây)
+        # Còn lại mới tra trong intervals
         intervals = {
             "auto_1m": 60,
             "auto_10m": 600,
@@ -298,6 +302,11 @@ def handle_callback(chat_id, data_callback):
             "auto_3h": 10800,
             "auto_6h": 21600,
         }
+
+        # Nếu callback không có trong intervals thì bỏ qua an toàn
+        if data_callback not in intervals:
+            return
+
         interval = intervals[data_callback]
 
         if AUTO_RUNNING:
@@ -308,6 +317,7 @@ def handle_callback(chat_id, data_callback):
         AUTO_THREAD.daemon = True
         AUTO_THREAD.start()
         return
+
     
     if data_callback == "auto_update":
         # Hiển thị trạng thái hiện tại
