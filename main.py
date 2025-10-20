@@ -7,6 +7,7 @@ import threading
 app = Flask(__name__)
 AUTO_THREAD = None
 AUTO_RUNNING = False
+AUTO_INTERVAL = 0
 
 # ==============================
 # CẤU HÌNH
@@ -275,8 +276,16 @@ def handle_callback(chat_id, data_callback):
         send_message(chat_id, "👥 Chọn thống kê thành viên:", reply_markup)
         return
 
-    
+    # ==============================
+    # XỬ LÝ NÚT AUTO UPDATE
+    # ==============================
     if data_callback == "auto_update":
+        # Hiển thị trạng thái hiện tại
+        if AUTO_RUNNING:
+            status_text = f"🔵 Đang bật tự động cập nhật mỗi {int(AUTO_INTERVAL/60)} phút."
+        else:
+            status_text = "⚪ Hiện đang tắt tự động cập nhật."
+
         reply_markup = {
             "inline_keyboard": [
                 [
@@ -295,8 +304,10 @@ def handle_callback(chat_id, data_callback):
                 ]
             ]
         }
-        send_message(chat_id, "🕒 Chọn thời gian tự động cập nhật war:", reply_markup)
+
+        send_message(chat_id, f"🕒 Chọn thời gian tự động cập nhật war:\n\n{status_text}", reply_markup)
         return
+
     
     if data_callback.startswith("auto_"):
         global AUTO_THREAD, AUTO_RUNNING
