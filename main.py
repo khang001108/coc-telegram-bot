@@ -1,8 +1,12 @@
 import requests, time, os, json
 from urllib.parse import quote_plus
 from flask import Flask, request
+import threading
+# ==============================
 
 app = Flask(__name__)
+AUTO_THREAD = None
+AUTO_RUNNING = False
 
 # ==============================
 # CẤU HÌNH
@@ -54,6 +58,9 @@ def webhook():
                     [
                         {"text": "👥 Members", "callback_data": "show_members"},
                         {"text": "🔍 Check", "callback_data": "show_check"}
+                    ],
+                    [
+                        {"text": "🕒 Tự động cập nhật", "callback_data": "auto_update"}
                     ]
                 ]
             }
@@ -90,9 +97,73 @@ def main_menu_markup():
             [
                 {"text": "👥 Members", "callback_data": "show_members"},
                 {"text": "🔍 Check", "callback_data": "show_check"}
+            ],
+            [
+                {"text": "🕒 Tự động cập nhật", "callback_data": "auto_update"}
             ]
         ]
     }
+# ==============================
+# TỰ ĐỘNG CẬP NHẬT WAR
+# ==============================
+def auto_send_updates(chat_id, interval):
+    global AUTO_RUNNING, AUTO_INTERVAL,AUTO_THREAD
+    AUTO_RUNNING = True
+    AUTO_INTERVAL = interval
+    end_time = time.time() + interval
+
+    send_message(chat_id, f"✅ Đã bật tự động cập nhật mỗi {interval/60:.0f} phút!")
+
+    while AUTO_RUNNING and time.time() < end_time:
+        try:
+            headers = {"Authorization": f"Bearer {COC_API_KEY}", "Accept": "application/json"}
+            clan_tag_encoded = quote_plus(CLAN_TAG)
+
+            war_url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}/currentwar"
+            war_data = safe_get_json(war_url, headers)
+
+            if not war_data:
+                time.sleep(interval)
+                continue
+
+            # ⚙️ Kiểm tra trạng thái war
+            state = war_data.get("state", "")
+            if state != "inWar":
+                log(f"⏸️ War state: {state} → Không gửi thông báo.")
+                time.sleep(interval)
+                continue
+
+            # =========================
+            # 🔥 ĐANG TRONG WAR → GỬI
+            # =========================
+            clan = war_data.get("clan", {})
+            opponent = war_data.get("opponent", {})
+
+            msg = (
+                f"⚔️ <b>{clan.get('name','?')}</b> vs <b>{opponent.get('name','?')}</b>\n"
+                f"⭐ {clan.get('stars',0)} - {opponent.get('stars',0)}\n"
+                f"🎯 Lượt đánh: {clan.get('attacks',0)} / {war_data.get('teamSize',0)*2}"
+            )
+            send_message(chat_id, msg)
+
+            # --- WAR MEMBERS ---
+            members = clan.get("members", [])
+            msg_members = "👥 <b>Danh sách war:</b>\n"
+            for m in members:
+                attacks = len(m.get("attacks", []))
+                stars = sum(a.get("stars",0) for a in m.get("attacks", []))
+                msg_members += f"{m.get('name','?')} - {attacks}/2 - {stars}⭐\n"
+            send_message(chat_id, msg_members)
+
+        except Exception as e:
+            log("Auto send error:", e)
+
+        time.sleep(interval)
+    
+        AUTO_RUNNING = False
+        AUTO_INTERVAL = 0
+        send_message(chat_id, "🕒 Tự động cập nhật đã kết thúc!")
+
 
 # ==============================
 # 4️⃣ GIAO DIỆN BUTTON
@@ -207,7 +278,68 @@ def handle_callback(chat_id, data_callback):
         send_message(chat_id, "👥 Chọn thống kê thành viên:", reply_markup)
         return
 
-        # send_message(chat_id, "👥 Chọn thống kê thành viên:", reply_markup)        
+    
+
+    
+    if data_callback.startswith("auto_"):
+        global AUTO_THREAD, AUTO_RUNNING
+
+        if data_callback == "auto_stop":
+            AUTO_RUNNING = False
+            send_message(chat_id, "🛑 Đã tắt tự động cập nhật.")
+            return
+
+        # Thời gian (giây)
+        intervals = {
+            "auto_1m": 60,
+            "auto_10m": 600,
+            "auto_30m": 1800,
+            "auto_1h": 3600,
+            "auto_3h": 10800,
+            "auto_6h": 21600,
+        }
+        interval = intervals[data_callback]
+
+        if AUTO_RUNNING:
+            send_message(chat_id, "⚠️ Tự động đang chạy. Hãy tắt trước khi bật lại.")
+            return
+
+        AUTO_THREAD = threading.Thread(target=auto_send_updates, args=(chat_id, interval))
+        AUTO_THREAD.daemon = True
+        AUTO_THREAD.start()
+        return
+
+    # ==============================
+    # XỬ LÝ NÚT AUTO UPDATE
+    # ==============================
+    if data_callback == "auto_update":
+        # Hiển thị trạng thái hiện tại
+        if AUTO_RUNNING:
+            status_text = f"🔵 Đang bật tự động cập nhật mỗi {int(AUTO_INTERVAL/60)} phút."
+        else:
+            status_text = "⚪ Hiện đang tắt tự động cập nhật."
+
+        reply_markup = {
+            "inline_keyboard": [
+                [
+                    {"text": "1 phút", "callback_data": "auto_1m"},
+                    {"text": "10 phút", "callback_data": "auto_10m"},
+                    {"text": "30 phút", "callback_data": "auto_30m"}
+                ],
+                [
+                    {"text": "1 giờ", "callback_data": "auto_1h"},
+                    {"text": "3 giờ", "callback_data": "auto_3h"},
+                    {"text": "6 giờ", "callback_data": "auto_6h"}
+                ],
+                [
+                    {"text": "❌ Tắt tự động", "callback_data": "auto_stop"},
+                    {"text": "🔙 Trở về", "callback_data": "back_menu"}
+                ]
+            ]
+        }
+
+        send_message(chat_id, f"🕒 Chọn thời gian tự động cập nhật war:\n\n{status_text}", reply_markup)
+        return
 
 # ==============================
 # 5️⃣ CALLBACK XỬ LÝ NÚT (CẬP NHẬT /currentwar)
