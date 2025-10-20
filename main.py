@@ -316,7 +316,7 @@ def handle_callback(chat_id, data_callback):
 
     
     if data_callback.startswith("auto_"):
-        global AUTO_THREAD
+        global AUTO_THREAD, AUTO_RUNNING, AUTO_INTERVAL
 
         if data_callback == "auto_stop":
             AUTO_RUNNING = False
