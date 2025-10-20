@@ -6,7 +6,7 @@ import threading
 
 app = Flask(__name__)
 AUTO_THREAD = None
-# AUTO_RUNNING = False
+AUTO_RUNNING = False
 AUTO_INTERVAL = 0
 
 # ==============================
@@ -316,7 +316,7 @@ def handle_callback(chat_id, data_callback):
 
     
     if data_callback.startswith("auto_"):
-        global AUTO_THREAD, AUTO_RUNNING
+        global AUTO_THREAD
 
         if data_callback == "auto_stop":
             AUTO_RUNNING = False
