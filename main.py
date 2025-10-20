@@ -5,9 +5,8 @@ import threading
 # ==============================
 
 app = Flask(__name__)
-# AUTO_THREAD = None
-# AUTO_RUNNING = False
-# AUTO_INTERVAL = 0
+AUTO_THREAD = None
+AUTO_RUNNING = False
 
 # ==============================
 # CẤU HÌNH
@@ -108,8 +107,9 @@ def main_menu_markup():
 # TỰ ĐỘNG CẬP NHẬT WAR
 # ==============================
 def auto_send_updates(chat_id, interval):
-    global AUTO_RUNNING
+    global AUTO_RUNNING, AUTO_INTERVAL,AUTO_THREAD
     AUTO_RUNNING = True
+    AUTO_INTERVAL = interval
     end_time = time.time() + interval
 
     send_message(chat_id, f"✅ Đã bật tự động cập nhật mỗi {interval/60:.0f} phút!")
@@ -160,8 +160,10 @@ def auto_send_updates(chat_id, interval):
 
         time.sleep(interval)
     
-    AUTO_RUNNING = False
-    send_message(chat_id, "🕒 Tự động cập nhật đã kết thúc!")
+        AUTO_RUNNING = False
+        AUTO_INTERVAL = 0
+        send_message(chat_id, "🕒 Tự động cập nhật đã kết thúc!")
+
 
 # ==============================
 # 4️⃣ GIAO DIỆN BUTTON
@@ -276,24 +278,18 @@ def handle_callback(chat_id, data_callback):
         send_message(chat_id, "👥 Chọn thống kê thành viên:", reply_markup)
         return
 
-    # ==============================
-    # XỬ LÝ NÚT AUTO UPDATE
-    # ==============================    
+    
+
+    
     if data_callback.startswith("auto_"):
-        global AUTO_THREAD, AUTO_RUNNING, AUTO_INTERVAL
+        global AUTO_THREAD, AUTO_RUNNING
 
-        # Nếu là auto_update, bỏ qua vì nó đã xử lý ở trên
-        if data_callback == "auto_update":
-            return
-
-        # Nếu là auto_stop thì tắt tự động
         if data_callback == "auto_stop":
             AUTO_RUNNING = False
-            AUTO_INTERVAL = 0
             send_message(chat_id, "🛑 Đã tắt tự động cập nhật.")
             return
 
-        # Còn lại mới tra trong intervals
+        # Thời gian (giây)
         intervals = {
             "auto_1m": 60,
             "auto_10m": 600,
@@ -302,11 +298,6 @@ def handle_callback(chat_id, data_callback):
             "auto_3h": 10800,
             "auto_6h": 21600,
         }
-
-        # Nếu callback không có trong intervals thì bỏ qua an toàn
-        if data_callback not in intervals:
-            return
-
         interval = intervals[data_callback]
 
         if AUTO_RUNNING:
@@ -318,19 +309,15 @@ def handle_callback(chat_id, data_callback):
         AUTO_THREAD.start()
         return
 
-    
+    # ==============================
+    # XỬ LÝ NÚT AUTO UPDATE
+    # ==============================
     if data_callback == "auto_update":
         # Hiển thị trạng thái hiện tại
         if AUTO_RUNNING:
-            minutes = int(AUTO_INTERVAL / 60)
-            if minutes < 60:
-                status_text = f"🔵 Đang bật tự động cập nhật mỗi {minutes} phút."
-            else:
-                hours = minutes / 60
-                status_text = f"🔵 Đang bật tự động cập nhật mỗi {hours:.0f} giờ."
+            status_text = f"🔵 Đang bật tự động cập nhật mỗi {int(AUTO_INTERVAL/60)} phút."
         else:
             status_text = "⚪ Hiện đang tắt tự động cập nhật."
-
 
         reply_markup = {
             "inline_keyboard": [
@@ -353,8 +340,6 @@ def handle_callback(chat_id, data_callback):
 
         send_message(chat_id, f"🕒 Chọn thời gian tự động cập nhật war:\n\n{status_text}", reply_markup)
         return
-
-
 
 # ==============================
 # 5️⃣ CALLBACK XỬ LÝ NÚT (CẬP NHẬT /currentwar)
