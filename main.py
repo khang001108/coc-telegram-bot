@@ -58,6 +58,9 @@ def webhook():
                     [
                         {"text": "👥 Members", "callback_data": "show_members"},
                         {"text": "🔍 Check", "callback_data": "show_check"}
+                    ],
+                    [
+                        {"text": "🕒 Tự động cập nhật", "callback_data": "auto_update"}
                     ]
                 ]
             }
