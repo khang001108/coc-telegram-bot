@@ -390,7 +390,7 @@ def handle_callback(chat_id, data_callback):
             send_message(chat_id, "❌ Lỗi khi lấy dữ liệu war.")
             return
         members = war_data.get("clan", {}).get("members", [])
-        msg = "👥 <b>Danh sách thành viên war a:</b>\n"
+        msg = "👥 <b>Danh sách thành viên war:</b>\n"
         for m in members:
             attacks = len(m.get("attacks", []))
             stars = sum(a.get("stars",0) for a in m.get("attacks", []))
