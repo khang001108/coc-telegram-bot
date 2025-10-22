@@ -164,7 +164,7 @@ def auto_send_updates(chat_id, interval):
 # ==============================
 # 4️⃣ GIAO DIỆN BUTTON
 # ==============================
-def handle_callback(data_callback, chat_id):
+def handle_callback(chat_id, data_callback):
     global AUTO_THREAD, AUTO_RUNNING, AUTO_INTERVAL
 
     msg = None
@@ -276,9 +276,9 @@ def handle_callback(data_callback, chat_id):
         send_message(chat_id, "👥 Chọn thống kê thành viên:", reply_markup)
         return
     # ==============================
-    # XỬ LÝ NÚT AUTO UPDATE
+    # AUTO UPDATE MENU
     # ==============================
-    elif data_callback == "auto_update":
+    if data_callback == "auto_update":
         # Hiển thị trạng thái hiện tại
         if AUTO_RUNNING:
             status_text = f"🔵 Đang bật tự động cập nhật mỗi {int(AUTO_INTERVAL/60)} phút."
@@ -313,9 +313,8 @@ def handle_callback(data_callback, chat_id):
 
 
     # ==============================
-    # XỬ LÝ CHỌN THỜI GIAN AUTO
+    # AUTO UPDATE HANDLER
     # ==============================
-    data_callback = str(data_callback or "")
     if data_callback.startswith("auto_"):
         if data_callback == "auto_stop":
             AUTO_RUNNING = False
