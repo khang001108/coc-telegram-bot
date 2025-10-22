@@ -60,7 +60,7 @@ def webhook():
                         {"text": "🔍 Check", "callback_data": "show_check"}
                     ],
                     [
-                        {"text": "🕒 Tự động cập nhật", "callback_data": "auto_update"}
+                        {"text": "🕒 Thông báo WAR", "callback_data": "auto_update"}
                     ]
                 ]
             }
@@ -99,12 +99,12 @@ def main_menu_markup():
                 {"text": "🔍 Check", "callback_data": "show_check"}
             ],
             [
-                {"text": "🕒 Tự động cập nhật", "callback_data": "auto_update"}
+                {"text": "🕒 Thông báo WAR", "callback_data": "auto_update"}
             ]
         ]
     }
 # ==============================
-# TỰ ĐỘNG CẬP NHẬT WAR
+# Thông báo WAR WAR
 # ==============================
 def auto_send_updates(chat_id, interval):
     global AUTO_RUNNING, AUTO_INTERVAL, AUTO_THREAD
@@ -112,7 +112,7 @@ def auto_send_updates(chat_id, interval):
     AUTO_INTERVAL = interval
     end_time = time.time() + interval
 
-    # send_message(chat_id, f"✅ Đã bật tự động cập nhật mỗi {interval/60:.0f} phút!")
+    # send_message(chat_id, f"✅ Đã bật Thông báo WAR mỗi {interval/60:.0f} phút!")
 
     while AUTO_RUNNING and time.time() < end_time:
         try:
@@ -158,7 +158,7 @@ def auto_send_updates(chat_id, interval):
 
     AUTO_RUNNING = False
     AUTO_INTERVAL = 0
-    send_message(chat_id, "🕒 Tự động cập nhật đã kết thúc!")
+    send_message(chat_id, "🕒 Thông báo WAR đã kết thúc!")
 
 
 # ==============================
@@ -203,11 +203,11 @@ def handle_callback(chat_id, data_callback):
             f"🔥 Chuỗi thắng: {res.get('warWinStreak', 0)}\n"
             f"⚔️ War: {res.get('warWins', 0)} thắng / {res.get('warLosses', 0)} thua / {res.get('warTies', 0)} hòa"
         )
-        # 🔄 Thêm trạng thái tự động cập nhật
+        # 🔄 Thêm trạng thái Thông báo WAR
         if AUTO_RUNNING:
-            msg += f"\n🟢 Tự động cập nhật: BẬT (mỗi {AUTO_INTERVAL//60} phút)"
+            msg += f"\n🔊 Thông báo WAR: BẬT (mỗi {AUTO_INTERVAL//60} phút)"
         else:
-            msg += "\n⚪ Tự động cập nhật: TẮT"
+            msg += "\n🔈 Thông báo WAR: TẮT"
         send_message(chat_id, msg, {
             "inline_keyboard": [[{"text": "🔙 Trở về", "callback_data": "back_menu"}]]
         })
@@ -286,21 +286,21 @@ def handle_callback(chat_id, data_callback):
     if data_callback == "auto_update":
         # Hiển thị trạng thái hiện tại
         if AUTO_RUNNING:
-            status_text = f"🔵 Đang bật tự động cập nhật mỗi {int(AUTO_INTERVAL/60)} phút."
+            status_text = f"🔵 Đang bật Thông báo WAR mỗi {int(AUTO_INTERVAL/60)} phút."
         else:
-            status_text = "⚪ Hiện đang tắt tự động cập nhật."
+            status_text = "⚪ Hiện đang tắt Thông báo WAR."
 
         reply_markup = {
             "inline_keyboard": [
                 [
-                    {"text": "1 phút", "callback_data": "auto_1m"},
-                    {"text": "10 phút", "callback_data": "auto_10m"},
-                    {"text": "30 phút", "callback_data": "auto_30m"}
+                    {"text": "⏱1 phút", "callback_data": "auto_1m"},
+                    {"text": "⏱10 phút", "callback_data": "auto_10m"},
+                    {"text": "⏱30 phút", "callback_data": "auto_30m"}
                 ],
                 [
-                    {"text": "1 giờ", "callback_data": "auto_1h"},
-                    {"text": "3 giờ", "callback_data": "auto_3h"},
-                    {"text": "6 giờ", "callback_data": "auto_6h"}
+                    {"text": "⏱1 giờ", "callback_data": "auto_1h"},
+                    {"text": "⏱3 giờ", "callback_data": "auto_3h"},
+                    {"text": "⏱6 giờ", "callback_data": "auto_6h"}
                 ],
                 [
                     {"text": "❌ Tắt tự động", "callback_data": "auto_stop"},
@@ -311,7 +311,7 @@ def handle_callback(chat_id, data_callback):
 
         send_message(
             chat_id,
-            f"🕒 Chọn thời gian tự động cập nhật war:\n\n{status_text}",
+            f"🕒 Chọn thời gian Thông báo WAR war:\n\n{status_text}",
             reply_markup
         )
         return
@@ -323,7 +323,7 @@ def handle_callback(chat_id, data_callback):
     if data_callback.startswith("auto_"):
         if data_callback == "auto_stop":
             AUTO_RUNNING = False
-            send_message(chat_id, "🛑 Đã tắt tự động cập nhật.")
+            send_message(chat_id, "🛑 Đã tắt Thông báo WAR.")
             return
 
         intervals = {
@@ -351,7 +351,7 @@ def handle_callback(chat_id, data_callback):
         AUTO_THREAD.daemon = True
         AUTO_THREAD.start()
 
-        send_message(chat_id, f"✅ Đã bật tự động cập nhật mỗi {interval//60} phút.")
+        send_message(chat_id, f"✅ Đã bật Thông báo WAR mỗi {interval//60} phút.")
         return
 
 
