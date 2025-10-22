@@ -107,7 +107,7 @@ def main_menu_markup():
 # TỰ ĐỘNG CẬP NHẬT WAR
 # ==============================
 def auto_send_updates(chat_id, interval):
-    global AUTO_RUNNING, AUTO_INTERVAL,AUTO_THREAD
+    global AUTO_RUNNING, AUTO_INTERVAL, AUTO_THREAD
     AUTO_RUNNING = True
     AUTO_INTERVAL = interval
     end_time = time.time() + interval
@@ -118,48 +118,44 @@ def auto_send_updates(chat_id, interval):
         try:
             headers = {"Authorization": f"Bearer {COC_API_KEY}", "Accept": "application/json"}
             clan_tag_encoded = quote_plus(CLAN_TAG)
-
             war_url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}/currentwar"
             war_data = safe_get_json(war_url, headers)
 
             if not war_data:
-                time.sleep(interval)
-                continue
+                log("⚠️ Không lấy được dữ liệu war, thử lại sau.")
+            else:
+                state = war_data.get("state", "")
+                if state == "inWar":
+                    clan = war_data.get("clan", {})
+                    opponent = war_data.get("opponent", {})
 
-            # ⚙️ Kiểm tra trạng thái war
-            state = war_data.get("state", "")
-            if state != "inWar":
-                log(f"⏸️ War state: {state} → Không gửi thông báo.")
-                time.sleep(interval)
-                continue
+                    msg = (
+                        f"⚔️ <b>{clan.get('name','?')}</b> vs <b>{opponent.get('name','?')}</b>\n"
+                        f"⭐ {clan.get('stars',0)} - {opponent.get('stars',0)}\n"
+                        f"🎯 Lượt đánh: {clan.get('attacks',0)} / {war_data.get('teamSize',0)*2}"
+                    )
+                    send_message(chat_id, msg)
 
-            # =========================
-            # 🔥 ĐANG TRONG WAR → GỬI
-            # =========================
-            clan = war_data.get("clan", {})
-            opponent = war_data.get("opponent", {})
-
-            msg = (
-                f"⚔️ <b>{clan.get('name','?')}</b> vs <b>{opponent.get('name','?')}</b>\n"
-                f"⭐ {clan.get('stars',0)} - {opponent.get('stars',0)}\n"
-                f"🎯 Lượt đánh: {clan.get('attacks',0)} / {war_data.get('teamSize',0)*2}"
-            )
-            send_message(chat_id, msg)
-
-            # --- WAR MEMBERS ---
-            members = clan.get("members", [])
-            msg_members = "👥 <b>Danh sách war:</b>\n"
-            for m in members:
-                attacks = len(m.get("attacks", []))
-                stars = sum(a.get("stars",0) for a in m.get("attacks", []))
-                msg_members += f"{m.get('name','?')} - {attacks}/2 - {stars}⭐\n"
-            send_message(chat_id, msg_members)
+                    # --- WAR MEMBERS ---
+                    members = clan.get("members", [])
+                    msg_members = "👥 <b>Danh sách war:</b>\n"
+                    for m in members:
+                        attacks = len(m.get("attacks", []))
+                        stars = sum(a.get("stars",0) for a in m.get("attacks", []))
+                        msg_members += f"{m.get('name','?')} - {attacks}/2 - {stars}⭐\n"
+                    send_message(chat_id, msg_members)
+                else:
+                    log(f"⏸️ War state: {state} → Không gửi thông báo.")
 
         except Exception as e:
-            log("Auto send error:", e)
+            log(f"Auto send error: {e}")
 
-        time.sleep(interval)
-    
+        # 🔄 Chia nhỏ thời gian ngủ để có thể dừng giữa chừng
+        for _ in range(0, interval, 5):
+            if not AUTO_RUNNING:
+                break
+            time.sleep(5)
+
     AUTO_RUNNING = False
     AUTO_INTERVAL = 0
     send_message(chat_id, "🕒 Tự động cập nhật đã kết thúc!")
@@ -319,6 +315,7 @@ def handle_callback(data_callback, chat_id):
     # ==============================
     # XỬ LÝ CHỌN THỜI GIAN AUTO
     # ==============================
+    data_callback = str(data_callback or "")
     if data_callback.startswith("auto_"):
         if data_callback == "auto_stop":
             AUTO_RUNNING = False
