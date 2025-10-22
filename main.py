@@ -7,7 +7,7 @@ import threading
 app = Flask(__name__)
 AUTO_THREAD = None
 AUTO_RUNNING = False
-
+Authorization = 0
 # ==============================
 # CẤU HÌNH
 # ==============================
@@ -282,13 +282,13 @@ def handle_callback(chat_id, data_callback):
 
     
     if data_callback.startswith("auto_"):
-        global AUTO_THREAD, AUTO_RUNNING
-
+        global AUTO_THREAD, AUTO_RUNNING, AUTO_INTERVAL
+    
         if data_callback == "auto_stop":
             AUTO_RUNNING = False
             send_message(chat_id, "🛑 Đã tắt tự động cập nhật.")
             return
-
+    
         # Thời gian (giây)
         intervals = {
             "auto_1m": 60,
@@ -299,14 +299,17 @@ def handle_callback(chat_id, data_callback):
             "auto_6h": 21600,
         }
         interval = intervals[data_callback]
-
+    
         if AUTO_RUNNING:
             send_message(chat_id, "⚠️ Tự động đang chạy. Hãy tắt trước khi bật lại.")
             return
-
+    
+        AUTO_INTERVAL = interval  # ⚡ Cần thêm dòng này
+        AUTO_RUNNING = True       # ⚡ Kích hoạt trạng thái đang chạy
         AUTO_THREAD = threading.Thread(target=auto_send_updates, args=(chat_id, interval))
         AUTO_THREAD.daemon = True
         AUTO_THREAD.start()
+        send_message(chat_id, f"✅ Đã bật tự động cập nhật mỗi {interval//60} phút.")
         return
 
     # ==============================
