@@ -167,7 +167,6 @@ def auto_send_updates(chat_id, interval):
 def handle_callback(data_callback, chat_id):
     global AUTO_THREAD, AUTO_RUNNING, AUTO_INTERVAL
 
-    msg = None
     if data_callback == "back_menu":
         send_message(chat_id, "📋 Chọn chức năng:", main_menu_markup())
         return
@@ -176,15 +175,12 @@ def handle_callback(data_callback, chat_id):
         send_message(chat_id, "❌ COC_API_KEY chưa được cấu hình trên biến môi trường.")
         return
 
-    headers = {
-        "Authorization": f"Bearer {COC_API_KEY}",
-        "Accept": "application/json"
-    }
-
-    # url-encode clan tag (an toàn hơn replace)
+    headers = {"Authorization": f"Bearer {COC_API_KEY}", "Accept": "application/json"}
     clan_tag_encoded = quote_plus(CLAN_TAG)
 
+    # ==============================
     # CLAN INFO
+    # ==============================
     if data_callback == "show_clan":
         url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}"
         res = safe_get_json(url, headers)
@@ -203,12 +199,12 @@ def handle_callback(data_callback, chat_id):
             f"🔥 Chuỗi thắng: {res.get('warWinStreak', 0)}\n"
             f"⚔️ War: {res.get('warWins', 0)} thắng / {res.get('warLosses', 0)} thua / {res.get('warTies', 0)} hòa"
         )
-        send_message(chat_id, msg, {
-            "inline_keyboard": [[{"text": "🔙 Trở về", "callback_data": "back_menu"}]]
-        })
+        send_message(chat_id, msg, {"inline_keyboard": [[{"text": "🔙 Trở về", "callback_data": "back_menu"}]]})
         return
 
+    # ==============================
     # WAR INFO
+    # ==============================
     if data_callback == "show_war":
         url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}/currentwar"
         res = safe_get_json(url, headers)
@@ -242,21 +238,19 @@ def handle_callback(data_callback, chat_id):
 
         reply_markup = {
             "inline_keyboard": [
-                [{"text": "⚔️ Top War", "callback_data": "top_war"},
-                {"text": "👥 Thành viên tham gia", "callback_data": "war_members"}]
+                [
+                    {"text": "⚔️ Top War", "callback_data": "top_war"},
+                    {"text": "👥 Thành viên tham gia", "callback_data": "war_members"}
+                ],
+                [{"text": "🔙 Trở về", "callback_data": "back_menu"}]
             ]
         }
-        reply_markup["inline_keyboard"].append([{"text": "🔙 Trở về", "callback_data": "back_menu"}])
         send_message(chat_id, msg, reply_markup)
         return
 
-    if data_callback == "show_check":
-        send_message(chat_id, "🔍 Đang kiểm tra clan...")
-        time.sleep(2)
-        send_message(chat_id, "✅ Clan hoạt động bình thường!")
-        return
-
+    # ==============================
     # MEMBERS INFO
+    # ==============================
     if data_callback == "show_members":
         reply_markup = {
             "inline_keyboard": [
@@ -268,23 +262,17 @@ def handle_callback(data_callback, chat_id):
                     {"text": "🎓 Kinh nghiệm cao nhất", "callback_data": "top_exp"},
                     {"text": "🏰 Top Hall", "callback_data": "top_hall"}
                 ],
-                [
-                    {"text": "🔙 Trở về", "callback_data": "back_menu"}
-                ]
+                [{"text": "🔙 Trở về", "callback_data": "back_menu"}]
             ]
         }
         send_message(chat_id, "👥 Chọn thống kê thành viên:", reply_markup)
         return
-    # ==============================
-    # XỬ LÝ NÚT AUTO UPDATE
-    # ==============================
-    elif data_callback == "auto_update":
-        # Hiển thị trạng thái hiện tại
-        if AUTO_RUNNING:
-            status_text = f"🔵 Đang bật tự động cập nhật mỗi {int(AUTO_INTERVAL/60)} phút."
-        else:
-            status_text = "⚪ Hiện đang tắt tự động cập nhật."
 
+    # ==============================
+    # AUTO UPDATE MENU
+    # ==============================
+    if data_callback == "auto_update":
+        status_text = f"🔵 Đang bật tự động mỗi {int(AUTO_INTERVAL/60)} phút." if AUTO_RUNNING else "⚪ Đang tắt tự động cập nhật."
         reply_markup = {
             "inline_keyboard": [
                 [
@@ -303,19 +291,12 @@ def handle_callback(data_callback, chat_id):
                 ]
             ]
         }
-
-        send_message(
-            chat_id,
-            f"🕒 Chọn thời gian tự động cập nhật war:\n\n{status_text}",
-            reply_markup
-        )
+        send_message(chat_id, f"🕒 Chọn thời gian tự động cập nhật war:\n\n{status_text}", reply_markup)
         return
 
-
     # ==============================
-    # XỬ LÝ CHỌN THỜI GIAN AUTO
+    # AUTO UPDATE HANDLER
     # ==============================
-    data_callback = str(data_callback or "")
     if data_callback.startswith("auto_"):
         if data_callback == "auto_stop":
             AUTO_RUNNING = False
@@ -330,69 +311,25 @@ def handle_callback(data_callback, chat_id):
             "auto_3h": 10800,
             "auto_6h": 21600,
         }
-
         interval = intervals[data_callback]
 
         if AUTO_RUNNING:
-            send_message(chat_id, "⚠️ Tự động đang chạy. Hãy tắt trước khi bật lại.")
+            send_message(chat_id, "⚠️ Tự động đang chạy, hãy tắt trước khi bật lại.")
             return
 
         AUTO_INTERVAL = interval
         AUTO_RUNNING = True
 
-        AUTO_THREAD = threading.Thread(
-            target=auto_send_updates,
-            args=(chat_id, interval)
-        )
+        AUTO_THREAD = threading.Thread(target=auto_send_updates, args=(chat_id, interval))
         AUTO_THREAD.daemon = True
         AUTO_THREAD.start()
 
         send_message(chat_id, f"✅ Đã bật tự động cập nhật mỗi {interval//60} phút.")
         return
 
-
-# ==============================
-# 5️⃣ CALLBACK XỬ LÝ NÚT (CẬP NHẬT /currentwar)
-# ==============================
-    elif data_callback == "top_war":
-        url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}/currentwar"
-        war_data = safe_get_json(url, headers)
-        if not war_data:
-            send_message(chat_id, "❌ Lỗi khi lấy dữ liệu war.")
-            return
-
-        state = war_data.get("state", "notInWar")
-        members = war_data.get("clan", {}).get("members", [])
-
-        msg = ""
-        if state == "preparation":
-            msg += "🕐 Trạng thái: <b>Trong ngày chuẩn bị</b>\n"
-            msg += "<b>( Chưa có dữ liệu! )</b>\n"
-
-        elif state == "inWar":
-            msg = "🏅 <b>Top 5 người đánh nhiều sao nhất:</b>\n"
-            top = sorted(
-                members,
-                key=lambda m: sum(a.get("stars", 0) for a in m.get("attacks", [])),
-                reverse=True
-            )[:5]
-            for i, m in enumerate(top, 1):
-                stars = sum(a.get("stars", 0) for a in m.get("attacks", []))
-                msg += f"{i}. {m.get('name', '?')} - ⭐ {stars}\n"
-
-        elif state == "warEnded":
-            msg += "🏁 <b>Trận chiến đã kết thúc!</b>\n"
-
-        else:
-            msg += "❌ Hiện không có war nào đang diễn ra.\n"
-
-        msg += "\n\n🔙 /menu để quay lại hoặc chọn nút bên dưới."
-
-        send_message(chat_id, msg, {"inline_keyboard": [[{"text": "🔙 Trở về", "callback_data": "show_war"}]]})
-        return
-
-
-
+    # ==============================
+    # WAR MEMBERS & TOP WAR
+    # ==============================
     if data_callback == "war_members":
         url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}/currentwar"
         war_data = safe_get_json(url, headers)
@@ -403,119 +340,9 @@ def handle_callback(data_callback, chat_id):
         msg = "👥 <b>Danh sách thành viên war:</b>\n"
         for m in members:
             attacks = len(m.get("attacks", []))
-            stars = sum(a.get("stars",0) for a in m.get("attacks", []))
+            stars = sum(a.get("stars", 0) for a in m.get("attacks", []))
             msg += f"{m.get('name','?')} - {attacks}/2 - {stars}⭐\n"
-        
-        msg += "\n\n🔙 /menu để quay lại hoặc chọn nút bên dưới."
         send_message(chat_id, msg, {"inline_keyboard": [[{"text": "🔙 Trở về", "callback_data": "show_war"}]]})
-        return
-
-    # === MEMBERS DETAIL ===
-    if data_callback.startswith("top_"):
-        url = f"https://api.clashofclans.com/v1/clans/{clan_tag_encoded}/members"
-        data = safe_get_json(url, headers)
-        if not data:
-            send_message(chat_id, "❌ Lỗi khi lấy danh sách thành viên.")
-            return
-        members = data.get("items", [])  # endpoint này dùng "items" thay vì "memberList"
-
-        if data_callback == "top_donate":
-            top = sorted(members, key=lambda m: m.get("donations", 0), reverse=True)[:10]
-            msg = "🤝 <b>Top 10 donate nhiều nhất:</b>\n"
-            for i, m in enumerate(top, 1):
-                msg += f"{i}. {m.get('name','?')} - {m.get('donations',0)}\n"
-
-            msg += "\n\n🔙 /menu để quay lại hoặc chọn nút bên dưới."
-            reply_markup = {"inline_keyboard": [[{"text": "🔙 Trở về", "callback_data": "show_members"}]]}
-            send_message(chat_id, msg, reply_markup)
-            return
-
-
-        elif data_callback == "top_trophies":
-            reply_markup = {
-                "inline_keyboard": [
-                    [{"text": "🏰 Làng chính", "callback_data": "top_main"},
-                    {"text": "⚒️ Căn cứ thợ xây", "callback_data": "top_builder"}],
-                ]
-            }
-            reply_markup["inline_keyboard"].append([{"text": "🔙 Trở về", "callback_data": "show_members"}])
-            send_message(chat_id, "🏆 Chọn loại chiến tích muốn xem:", reply_markup)
-            return
-
-        elif data_callback == "top_main":
-            top = sorted(members, key=lambda m: m.get("trophies", 0), reverse=True)[:10]
-            msg = "🏰 <b>Top 10 làng chính:</b>\n"
-            for i, m in enumerate(top, 1):
-                msg += f"{i}. {m.get('name','?')} - 🏆 {m.get('trophies',0)}\n"
-
-            msg += "\n\n🔙 Chọn 'Trở về' để quay lại menu."
-
-            reply_markup = {
-                "inline_keyboard": [
-                    [{"text": "🔙 Trở về", "callback_data": "show_members"}]
-                ]
-            }
-
-            send_message(chat_id, msg, reply_markup)
-            return
-
-
-        elif data_callback == "top_builder":
-            top = sorted(members, key=lambda m: m.get("builderBaseTrophies", 0), reverse=True)[:10]
-            msg = "⚒️ <b>Top 10 căn cứ thợ xây:</b>\n"
-            for i, m in enumerate(top, 1):
-                msg += f"{i}. {m.get('name','?')} - ⚒️ {m.get('builderBaseTrophies',0)}\n"
-
-            msg += "\n\n🔙 Chọn 'Trở về' để quay lại menu."
-
-            reply_markup = {
-                "inline_keyboard": [
-                    [{"text": "🔙 Trở về", "callback_data": "show_members"}]
-                ]
-            }
-
-            send_message(chat_id, msg, reply_markup)
-            return
-
-        elif data_callback == "top_exp":
-            top = sorted(members, key=lambda m: m.get("expLevel", 0), reverse=True)[:10]
-            msg = "🎓 <b>Top 10 kinh nghiệm cao nhất:</b>\n"
-            for i, m in enumerate(top, 1):
-                msg += f"{i}. {m.get('name','?')} - LV {m.get('expLevel',0)}\n"
-
-            msg += "\n\n🔙 Chọn 'Trở về' để quay lại menu."
-
-            reply_markup = {
-                "inline_keyboard": [
-                    [{"text": "🔙 Trở về", "callback_data": "show_members"}]
-                ]
-            }
-
-            send_message(chat_id, msg, reply_markup)
-            return
-
-        elif data_callback == "top_hall":
-            top = sorted(members, key=lambda m: m.get("townHallLevel", 0), reverse=True)[:10]
-            msg = "🏰 <b>Top 10 Hall cao nhất:</b>\n"
-            for i, m in enumerate(top, 1):
-                msg += f"{i}. {m.get('name','?')} - Hall {m.get('townHallLevel',0)}\n"
-
-            msg += "\n\n🔙 Chọn 'Trở về' để quay lại menu."
-
-            reply_markup = {
-                "inline_keyboard": [
-                    [{"text": "🔙 Trở về", "callback_data": "show_members"}]
-                ]
-            }
-
-            send_message(chat_id, msg, reply_markup)
-            return
- 
-        if msg:
-            send_message(chat_id, msg)
-        else:
-            send_message(chat_id, f"❓ Không hiểu lệnh: {data_callback}")
-
         return
 
 
