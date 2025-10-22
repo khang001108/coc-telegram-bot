@@ -112,7 +112,7 @@ def auto_send_updates(chat_id, interval):
     AUTO_INTERVAL = interval
     end_time = time.time() + interval
 
-    send_message(chat_id, f"✅ Đã bật tự động cập nhật mỗi {interval/60:.0f} phút!")
+    # send_message(chat_id, f"✅ Đã bật tự động cập nhật mỗi {interval/60:.0f} phút!")
 
     while AUTO_RUNNING and time.time() < end_time:
         try:
@@ -203,6 +203,11 @@ def handle_callback(chat_id, data_callback):
             f"🔥 Chuỗi thắng: {res.get('warWinStreak', 0)}\n"
             f"⚔️ War: {res.get('warWins', 0)} thắng / {res.get('warLosses', 0)} thua / {res.get('warTies', 0)} hòa"
         )
+        # 🔄 Thêm trạng thái tự động cập nhật
+        if AUTO_RUNNING:
+            msg += f"\n🟢 Tự động cập nhật: BẬT (mỗi {AUTO_INTERVAL//60} phút)"
+        else:
+            msg += "\n⚪ Tự động cập nhật: TẮT"
         send_message(chat_id, msg, {
             "inline_keyboard": [[{"text": "🔙 Trở về", "callback_data": "back_menu"}]]
         })
