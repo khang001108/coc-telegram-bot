@@ -165,7 +165,6 @@ def auto_send_updates(chat_id, interval):
 # 4️⃣ GIAO DIỆN BUTTON
 # ==============================
 def handle_callback(chat_id, data_callback):
-def handle_callback(data_callback, chat_id):
     global AUTO_THREAD, AUTO_RUNNING, AUTO_INTERVAL
 
     msg = None
