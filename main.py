@@ -277,10 +277,11 @@ def handle_callback(chat_id, data_callback):
         }
         send_message(chat_id, "👥 Chọn thống kê thành viên:", reply_markup)
         return
-      # ========= AUTO ============   
+      # ==============================
+      # XỬ LÝ NÚT AUTO UPDATE
+      # ==============================
       elif data_callback == "auto_update":
           # Hiển thị trạng thái hiện tại
-          global AUTO_RUNNING, AUTO_INTERVAL
           if AUTO_RUNNING:
               status_text = f"🔵 Đang bật tự động cập nhật mỗi {int(AUTO_INTERVAL/60)} phút."
           else:
@@ -305,9 +306,17 @@ def handle_callback(chat_id, data_callback):
               ]
           }
   
-          send_message(chat_id, f"🕒 Chọn thời gian tự động cập nhật war:\n\n{status_text}", reply_markup)
+          send_message(
+              chat_id,
+              f"🕒 Chọn thời gian tự động cập nhật war:\n\n{status_text}",
+              reply_markup
+          )
           return
   
+  
+      # ==============================
+      # XỬ LÝ CHỌN THỜI GIAN AUTO
+      # ==============================
       elif data_callback.startswith("auto_"):
           global AUTO_THREAD, AUTO_RUNNING, AUTO_INTERVAL
   
@@ -316,7 +325,6 @@ def handle_callback(chat_id, data_callback):
               send_message(chat_id, "🛑 Đã tắt tự động cập nhật.")
               return
   
-          # Thời gian (giây)
           intervals = {
               "auto_1m": 60,
               "auto_10m": 600,
@@ -326,11 +334,6 @@ def handle_callback(chat_id, data_callback):
               "auto_6h": 21600,
           }
   
-          # Nếu callback không nằm trong intervals → thoát an toàn
-          if data_callback not in intervals:
-              send_message(chat_id, "⚠️ Tùy chọn không hợp lệ.")
-              return
-  
           interval = intervals[data_callback]
   
           if AUTO_RUNNING:
@@ -339,14 +342,16 @@ def handle_callback(chat_id, data_callback):
   
           AUTO_INTERVAL = interval
           AUTO_RUNNING = True
-          AUTO_THREAD = threading.Thread(target=auto_send_updates, args=(chat_id, interval))
+  
+          AUTO_THREAD = threading.Thread(
+              target=auto_send_updates,
+              args=(chat_id, interval)
+          )
           AUTO_THREAD.daemon = True
           AUTO_THREAD.start()
   
           send_message(chat_id, f"✅ Đã bật tự động cập nhật mỗi {interval//60} phút.")
           return
-
-    
 
 
 # ==============================
