@@ -122,7 +122,7 @@ def auto_send_updates(chat_id, interval):
             war_data = safe_get_json(war_url, headers)
 
             if not war_data:
-                log("⚠️ Không lấy được dữ liệu war, thử lại sau.")
+                send_message(chat_id, "⚠️ Không lấy được dữ liệu war, thử lại sau.")
             else:
                 state = war_data.get("state", "")
                 if state == "inWar":
@@ -145,10 +145,10 @@ def auto_send_updates(chat_id, interval):
                         msg_members += f"{m.get('name','?')} - {attacks}/2 - {stars}⭐\n"
                     send_message(chat_id, msg_members)
                 else:
-                    log(f"⏸️ War state: {state} → Không gửi thông báo.")
+                    send_message(chat_id, f"⏸️ Trạng thái war hiện tại: {state}")
 
         except Exception as e:
-            log(f"Auto send error: {e}")
+            send_message(chat_id, f"❌ Lỗi khi cập nhật tự động: {e}")
 
         # 🔄 Chia nhỏ thời gian ngủ để có thể dừng giữa chừng
         for _ in range(0, interval, 5):
@@ -165,6 +165,7 @@ def auto_send_updates(chat_id, interval):
 # 4️⃣ GIAO DIỆN BUTTON
 # ==============================
 def handle_callback(chat_id, data_callback):
+def handle_callback(data_callback, chat_id):
     global AUTO_THREAD, AUTO_RUNNING, AUTO_INTERVAL
 
     msg = None
