@@ -7,7 +7,7 @@ import threading
 app = Flask(__name__)
 AUTO_THREAD = None
 AUTO_RUNNING = False
-Authorization = 0
+AUTO_INTERVAL = 0
 # ==============================
 # CẤU HÌNH
 # ==============================
