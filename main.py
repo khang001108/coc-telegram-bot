@@ -160,9 +160,9 @@ def auto_send_updates(chat_id, interval):
 
         time.sleep(interval)
     
-        AUTO_RUNNING = False
-        AUTO_INTERVAL = 0
-        send_message(chat_id, "🕒 Tự động cập nhật đã kết thúc!")
+    AUTO_RUNNING = False
+    AUTO_INTERVAL = 0
+    send_message(chat_id, "🕒 Tự động cập nhật đã kết thúc!")
 
 
 # ==============================
@@ -280,69 +280,6 @@ def handle_callback(chat_id, data_callback):
 
     
 
-    
-    if data_callback.startswith("auto_"):
-        global AUTO_THREAD, AUTO_RUNNING, AUTO_INTERVAL
-    
-        if data_callback == "auto_stop":
-            AUTO_RUNNING = False
-            send_message(chat_id, "🛑 Đã tắt tự động cập nhật.")
-            return
-    
-        # Thời gian (giây)
-        intervals = {
-            "auto_1m": 60,
-            "auto_10m": 600,
-            "auto_30m": 1800,
-            "auto_1h": 3600,
-            "auto_3h": 10800,
-            "auto_6h": 21600,
-        }
-        interval = intervals[data_callback]
-    
-        if AUTO_RUNNING:
-            send_message(chat_id, "⚠️ Tự động đang chạy. Hãy tắt trước khi bật lại.")
-            return
-    
-        AUTO_INTERVAL = interval  # ⚡ Cần thêm dòng này
-        AUTO_RUNNING = True       # ⚡ Kích hoạt trạng thái đang chạy
-        AUTO_THREAD = threading.Thread(target=auto_send_updates, args=(chat_id, interval))
-        AUTO_THREAD.daemon = True
-        AUTO_THREAD.start()
-        send_message(chat_id, f"✅ Đã bật tự động cập nhật mỗi {interval//60} phút.")
-        return
-
-    # ==============================
-    # XỬ LÝ NÚT AUTO UPDATE
-    # ==============================
-    if data_callback == "auto_update":
-        # Hiển thị trạng thái hiện tại
-        if AUTO_RUNNING:
-            status_text = f"🔵 Đang bật tự động cập nhật mỗi {int(AUTO_INTERVAL/60)} phút."
-        else:
-            status_text = "⚪ Hiện đang tắt tự động cập nhật."
-
-        reply_markup = {
-            "inline_keyboard": [
-                [
-                    {"text": "1 phút", "callback_data": "auto_1m"},
-                    {"text": "10 phút", "callback_data": "auto_10m"},
-                    {"text": "30 phút", "callback_data": "auto_30m"}
-                ],
-                [
-                    {"text": "1 giờ", "callback_data": "auto_1h"},
-                    {"text": "3 giờ", "callback_data": "auto_3h"},
-                    {"text": "6 giờ", "callback_data": "auto_6h"}
-                ],
-                [
-                    {"text": "❌ Tắt tự động", "callback_data": "auto_stop"},
-                    {"text": "🔙 Trở về", "callback_data": "back_menu"}
-                ]
-            ]
-        }
-
-        send_message(chat_id, f"🕒 Chọn thời gian tự động cập nhật war:\n\n{status_text}", reply_markup)
-        return
 
 # ==============================
 # 5️⃣ CALLBACK XỬ LÝ NÚT (CẬP NHẬT /currentwar)
@@ -510,6 +447,68 @@ def handle_callback(chat_id, data_callback):
             send_message(chat_id, f"❓ Không hiểu lệnh: {data_callback}")
 
         return
+      
+     # ========= AUTO ============   
+    if data_callback.startswith("auto_"):
+        global AUTO_THREAD, AUTO_RUNNING, AUTO_INTERVAL
+    
+        if data_callback == "auto_stop":
+            AUTO_RUNNING = False
+            send_message(chat_id, "🛑 Đã tắt tự động cập nhật.")
+            return
+    
+        # Thời gian (giây)
+        intervals = {
+            "auto_1m": 60,
+            "auto_10m": 600,
+            "auto_30m": 1800,
+            "auto_1h": 3600,
+            "auto_3h": 10800,
+            "auto_6h": 21600,
+        }
+        interval = intervals[data_callback]
+    
+        if AUTO_RUNNING:
+            send_message(chat_id, "⚠️ Tự động đang chạy. Hãy tắt trước khi bật lại.")
+            return
+    
+        AUTO_INTERVAL = interval  # ⚡ Cần thêm dòng này
+        AUTO_RUNNING = True       # ⚡ Kích hoạt trạng thái đang chạy
+        AUTO_THREAD = threading.Thread(target=auto_send_updates, args=(chat_id, interval))
+        AUTO_THREAD.daemon = True
+        AUTO_THREAD.start()
+        send_message(chat_id, f"✅ Đã bật tự động cập nhật mỗi {interval//60} phút.")
+        return
+
+    elif data_callback == "auto_update":
+        # Hiển thị trạng thái hiện tại
+        if AUTO_RUNNING:
+            status_text = f"🔵 Đang bật tự động cập nhật mỗi {int(AUTO_INTERVAL/60)} phút."
+        else:
+            status_text = "⚪ Hiện đang tắt tự động cập nhật."
+
+        reply_markup = {
+            "inline_keyboard": [
+                [
+                    {"text": "1 phút", "callback_data": "auto_1m"},
+                    {"text": "10 phút", "callback_data": "auto_10m"},
+                    {"text": "30 phút", "callback_data": "auto_30m"}
+                ],
+                [
+                    {"text": "1 giờ", "callback_data": "auto_1h"},
+                    {"text": "3 giờ", "callback_data": "auto_3h"},
+                    {"text": "6 giờ", "callback_data": "auto_6h"}
+                ],
+                [
+                    {"text": "❌ Tắt tự động", "callback_data": "auto_stop"},
+                    {"text": "🔙 Trở về", "callback_data": "back_menu"}
+                ]
+            ]
+        }
+
+        send_message(chat_id, f"🕒 Chọn thời gian tự động cập nhật war:\n\n{status_text}", reply_markup)
+        return
+
 
 # Helper: safe GET + JSON + logging
 def safe_get_json(url, headers, timeout=10):
