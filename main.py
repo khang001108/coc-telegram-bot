@@ -168,7 +168,9 @@ def auto_send_updates(chat_id, interval):
 # ==============================
 # 4️⃣ GIAO DIỆN BUTTON
 # ==============================
-def handle_callback(chat_id, data_callback):
+def handle_callback(data_callback, chat_id):
+    global AUTO_THREAD, AUTO_RUNNING, AUTO_INTERVAL
+
     msg = None
     if data_callback == "back_menu":
         send_message(chat_id, "📋 Chọn chức năng:", main_menu_markup())
@@ -317,9 +319,7 @@ def handle_callback(chat_id, data_callback):
     # ==============================
     # XỬ LÝ CHỌN THỜI GIAN AUTO
     # ==============================
-    elif data_callback.startswith("auto_"):
-        global AUTO_THREAD, AUTO_RUNNING, AUTO_INTERVAL
-
+    if data_callback.startswith("auto_"):
         if data_callback == "auto_stop":
             AUTO_RUNNING = False
             send_message(chat_id, "🛑 Đã tắt tự động cập nhật.")
